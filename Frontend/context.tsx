@@ -1,15 +1,24 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from './types';
-import { MOCK_USERS } from './data';
+import API from './api';
 
 interface AppContextType {
   user: User | null;
-  login: (email: string, role: UserRole, isSignup?: boolean) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (input: RegisterInput) => Promise<boolean>;
   logout: () => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   notifications: number;
+}
+
+interface RegisterInput {
+  email: string;
+  password: string;
+  name: string;
+  role: UserRole;
+  location?: string;
+  docUrl?: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -19,7 +28,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [notifications] = useState(3);
 
-  // Initialize theme from system preference or local storage logic could go here
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -28,33 +36,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [theme]);
 
-  const login = async (email: string, role: UserRole, isSignup: boolean = false) => {
-    // Simulate API call
-    return new Promise<boolean>((resolve) => {
-      setTimeout(() => {
-        if (isSignup && role !== 'ADMIN') {
-            // Simulate a new unverified user
-            setUser({
-                id: `u${Date.now()}`,
-                name: 'New User',
-                email: email,
-                role: role,
-                avatar: 'https://i.pravatar.cc/150',
-                verified: false,
-                location: 'Unknown',
-            });
-        } else {
-            // Simulate mock login
-            const foundUser = MOCK_USERS.find(u => u.role === role) || MOCK_USERS[0];
-            setUser({...foundUser, role}); // Force role for demo purposes
-        }
-        resolve(true);
-      }, 800);
-    });
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Optionally validate token and set initial user
+      // Could call /api/me here
+      // For now, keep user as is on reload
+    }
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    try {
+      const { data } = await API.post('/auth/login', { email, password });
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+      API.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const register = async (input: RegisterInput) => {
+    try {
+      const { data } = await API.post('/auth/register', input);
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+      API.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+      return true;
+    } catch (err) {
+      return false;
+    }
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('token');
   };
 
   const toggleTheme = () => {
@@ -62,7 +79,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   return (
-    <AppContext.Provider value={{ user, login, logout, theme, toggleTheme, notifications }}>
+    <AppContext.Provider value={{ user, login, register, logout, theme, toggleTheme, notifications }}>
       {children}
     </AppContext.Provider>
   );
@@ -70,6 +87,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 export const useApp = () => {
   const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
+  if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
