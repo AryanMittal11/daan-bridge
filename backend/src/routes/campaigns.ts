@@ -1,14 +1,15 @@
 import express from 'express';
 import prisma from '../prisma/client';
-import { authenticateJWT } from '../middleware/auth';
-import { requireVerified } from '../middleware/rbac';
+import { authenticateJWT, AuthRequest } from '../middleware/auth';
+import { requireRole, requireVerified } from '../middleware/rbac';
 
 const router = express.Router();
 
 // Fetch all campaigns (any authenticated user can view)
-router.get('/', authenticateJWT, async (req, res) => {
+router.get('/all', authenticateJWT, async (req: AuthRequest, res: any) => {
   try {
     const campaigns = await prisma.campaign.findMany({ orderBy: { createdAt: 'desc' } });
+    console.log(campaigns);
     res.json({ campaigns });
   } catch (error) {
     console.error('Error fetching campaigns:', error);
@@ -17,12 +18,13 @@ router.get('/', authenticateJWT, async (req, res) => {
 });
 
 // Create new campaign (ORG only)
-router.post('/', authenticateJWT, requireVerified, async (req, res) => {
+router.post('/add', authenticateJWT, requireVerified, async (req, res) => {
   const { title, description, type, target, unit, category, image, location, deadline } = req.body;
   const jwtUser = (req as any).user;
   if (jwtUser.role !== 'ORGANIZATION' && jwtUser.role !== 'ADMIN') {
     return res.status(403).json({ message: 'Only organizations/admins can create campaigns.' });
   }
+  console.log("Jwt user" + jwtUser);
   const dbUser = await prisma.user.findUnique({ where: { id: jwtUser.sub } });
   if (!dbUser) return res.status(401).json({ message: 'User not found.' });
   const campaign = await prisma.campaign.create({

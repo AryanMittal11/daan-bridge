@@ -13,7 +13,8 @@ export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunct
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!);
     req.user = payload;
-    next();
+    console.log("cdfuhf");
+    return next();
   } catch (err) {
     return res.status(403).json({ message: 'Invalid or expired token.' });
   }
