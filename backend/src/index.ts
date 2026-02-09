@@ -5,6 +5,7 @@ import authRoutes from './routes/auth';
 import verificationRoutes from './routes/verification';
 import adminRoutes from './routes/admin';
 import protectedRoutes from './routes/protected';
+import bloodRoutes from './routes/inventory';
 import campaignsRoutes from './routes/campaigns';
 import prisma from "./prisma/client";
 
@@ -17,6 +18,7 @@ app.use('/api/verification', verificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api', protectedRoutes); // Other protected endpoints
 app.use('/api/campaigns', campaignsRoutes); // NEW: Campaigns API
+app.use('/api/blood', bloodRoutes); // NEW: Campaigns API
 
 app.get('/api/me', (req, res) => { res.send('Daan Bridge API up'); });
 

@@ -40,6 +40,7 @@ export const Campaigns = () => {
   const [donateItems, setDonateItems] = useState("");
   const [donateSubmitting, setDonateSubmitting] = useState(false);
   const [donationsList, setDonationsList] = useState<any[]>([]);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [newRequest, setNewRequest] = useState({
     type: "MONETARY",
@@ -397,18 +398,15 @@ export const Campaigns = () => {
             label="Image"
             accept="image/*"
             onChange={(e) => {
-              const file = e.target.files[0];
+              const file = e.target.files?.[0];
               if (!file) return;
 
               const previewUrl = URL.createObjectURL(file);
 
-              setNewRequest({
-                ...newRequest,
-                image: previewUrl,
-                imageFile: file,
-              });
+              setImageFile(file);
             }}
           />
+
           <Input
             label="Deadline"
             value={newRequest.deadline}
