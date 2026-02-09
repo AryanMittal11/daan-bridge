@@ -1,32 +1,28 @@
 {
-  "name": "backend",
+  "name": "daanbridge-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.ts",
+  "main": "src/index.ts",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only ./server.ts",
-    "build": "tsc ./server.ts --outDir ./JS --module commonjs --target ES2020 --esModuleInterop",
-    "start": "node ./JS/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "ts-node-dev src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prisma:migrate": "prisma migrate dev --name init"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.16.1",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.0.0",
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "morgan": "^1.10.1",
-    "pg": "^8.16.3",
-    "prisma": "^7.0.0"
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "latest",
+    "cors": "latest",
+    "express": "latest",
+    "jsonwebtoken": "latest",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
-    "@prisma/client": "^7.0.0",
-    "@prisma/config": "^7.0.0",
-    "@types/express": "^5.0.5",
-    "@types/morgan": "^1.9.10",
-    "@types/node": "^24.10.1",
-    "@types/pg": "^8.15.6"
+    "@prisma/config": "^7.3.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "dotenv": "^17.2.4",
+    "ts-node-dev": "latest",
+    "typescript": "latest"
   }
 }

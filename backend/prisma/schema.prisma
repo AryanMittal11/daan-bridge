@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  verified     Boolean  @default(false)
+  verification VerificationRequest?
+  avatar       String?
+  location     String?
+  createdAt    DateTime @default(now())
+  campaigns    Campaign[] @relation("UserCampaigns")
+  donations    Donation[]
+}
+
+model VerificationRequest {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id])
+  docUrl     String
+  status     VerificationStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+  reviewedAt DateTime?
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  organizer   String
+  type        RequestType
+  target      Int
+  raised      Int      @default(0)
+  unit        String
+  status      RequestStatus @default(PENDING)
+  deadline    String?
+  image       String?
+  location    String?
+  urgent      Boolean  @default(false)
+  category    String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [createdBy], references: [id], name: "UserCampaigns")
+  donations   Donation[]
+}
+
+model Donation {
+  id         String   @id @default(uuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  donorId    String
+  donor      User     @relation(fields: [donorId], references: [id])
+  donorName  String
+  amount     Int
+  type       DonationType
+  status     DonationStatus @default(COMPLETED)
+  items      String?  // JSON or comma-separated for MATERIAL
+  createdAt  DateTime @default(now())
+}
+
+enum DonationType {
+  MONEY
+  MATERIAL
+}
+
+enum DonationStatus {
+  PROCESSING
+  COMPLETED
+}
+
+enum Role {
+  INDIVIDUAL
+  ORGANIZATION
+  ADMIN
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  MONETARY
+  MATERIAL
+  VOLUNTEER
+  BLOOD
+  DISASTER
+  EDUCATION
+  HEALTH
+  WELFARE
+}
+
+enum RequestStatus {
+  PENDING
+  VERIFIED
+  FULFILLED
+  URGENT
+  REJECTED
+}

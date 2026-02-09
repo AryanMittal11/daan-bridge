@@ -1,18 +1,16 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Badge, Button, Tabs, Modal, Select, Input } from '../components/UI';
-import { MOCK_USERS } from '../data';
-import { 
-  Shield, Check, X, BarChart2, AlertTriangle, FileText, 
-  Users, DollarSign, Activity, Download, Search, Filter, 
+import API from '../api';
+import {
+  Shield, Check, X, BarChart2, AlertTriangle, FileText,
+  Users, DollarSign, Activity, Download, Search, Filter,
   Eye, Trash2, Flag, Calendar, CheckCircle
 } from 'lucide-react';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  BarChart, Bar, PieChart, Pie, Cell, Legend 
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-// --- Mock Data for Admin ---
 const ANALYTICS_DATA = {
   growth: [
     { name: 'Jan', users: 400, donations: 12000 },
@@ -34,16 +32,13 @@ const ANALYTICS_DATA = {
     { name: 'Other', value: 5 },
   ]
 };
-
 const COLORS = ['#0d9488', '#f59e0b', '#ef4444', '#3b82f6'];
-
 const FLAGGED_ITEMS = [
   { id: 'f1', type: 'CAMPAIGN', title: 'Medical Fund for Unknown', reason: 'Suspicious Beneficiary details', reporter: 'System AI', severity: 'HIGH', date: '2024-06-10' },
   { id: 'f2', type: 'USER', title: 'Alex Trade Corp', reason: 'Multiple spam comments reported', reporter: 'User: Sarah J.', severity: 'MEDIUM', date: '2024-06-11' },
   { id: 'f3', type: 'POST', title: 'Gallery Image #8823', reason: 'Inappropriate content', reporter: 'User: Mike R.', severity: 'LOW', date: '2024-06-12' },
   { id: 'f4', type: 'TRANSACTION', title: 'TXN-99283', reason: 'High value transfer from unverified source', reporter: 'Fraud Detection', severity: 'CRITICAL', date: '2024-06-12' },
 ];
-
 const REPORTS_LIST = [
   { id: 1, title: 'Monthly Financial Summary - May 2024', type: 'Finance', date: '2024-06-01', size: '2.4 MB', format: 'PDF' },
   { id: 2, title: 'Q1 Impact Assessment', type: 'Impact', date: '2024-04-15', size: '5.1 MB', format: 'PDF' },
@@ -53,26 +48,44 @@ const REPORTS_LIST = [
 
 export const Admin = () => {
   const [activeTab, setActiveTab] = useState('Verification');
-  
-  // Moderation State
   const [selectedFlag, setSelectedFlag] = useState<any | null>(null);
-  
-  // Reports State
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  // Verification State
-  const unverifiedUsers = MOCK_USERS.filter(u => !u.verified);
+  // FOR BACKEND-DATA:
+  const [verificationRequests, setVerificationRequests] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  // Fetch verification requests from backend
+  const fetchVerificationRequests = async () => {
+    setLoadingUsers(true);
+    try {
+      const { data } = await API.get('/admin/verification-requests');
+      setVerificationRequests(data.requests || []);
+    } catch (err) {
+      setVerificationRequests([]);
+    }
+    setLoadingUsers(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Verification') fetchVerificationRequests();
+  }, [activeTab]);
+
+  // Approve/Reject user
+  const handleVerifyUser = async (userId: string, action: 'approve' | 'reject') => {
+    await API.post('/admin/verify-user', {
+      userId,
+      action: action === 'approve' ? 'APPROVED' : 'REJECTED'
+    });
+    fetchVerificationRequests();
+  };
+
+  // Everything else (moderation, analytics, reports) can be left as is, OR use similar patterns for real data.
 
   const handleAction = (action: string, item: any) => {
     alert(`${action} action taken on ${item.type}: ${item.title}`);
     setSelectedFlag(null);
   };
-
-  const handleVerifyUser = (userId: string, action: 'approve' | 'reject') => {
-    alert(`User ${action === 'approve' ? 'Approved' : 'Rejected'}! Email notification sent.`);
-    // In a real app, update state/backend
-  };
-
   const handleGenerateReport = () => {
     setIsGeneratingReport(true);
     setTimeout(() => {
@@ -111,7 +124,7 @@ export const Admin = () => {
          <div className="space-y-6">
             <div className="flex gap-4">
                <Card className="flex-1 p-4 border-l-4 border-amber-500">
-                  <h3 className="font-bold text-2xl">{unverifiedUsers.length}</h3>
+                  <h3 className="font-bold text-2xl">{verificationRequests.length}</h3>
                   <p className="text-sm text-slate-500">Pending Requests</p>
                </Card>
                <Card className="flex-1 p-4 border-l-4 border-emerald-500">
@@ -140,42 +153,45 @@ export const Admin = () => {
                         </tr>
                      </thead>
                      <tbody className="text-sm">
-                        {unverifiedUsers.map((user) => (
-                           <tr key={user.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                              <td className="p-4">
-                                 <div className="flex items-center gap-3">
-                                    <img src={user.avatar} alt="" className="w-10 h-10 rounded-full" />
-                                    <div>
-                                       <p className="font-bold text-slate-800 dark:text-white">{user.name}</p>
-                                       <p className="text-xs text-slate-500">{user.email}</p>
-                                    </div>
-                                 </div>
-                              </td>
-                              <td className="p-4"><Badge variant="info">{user.role}</Badge></td>
-                              <td className="p-4">
-                                 <button className="flex items-center gap-1 text-primary-600 hover:underline text-xs font-medium bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">
-                                    <FileText size={14} /> {user.verificationDocument}
-                                 </button>
-                              </td>
-                              <td className="p-4 text-slate-600">{user.location}</td>
-                              <td className="p-4 text-right">
-                                 <div className="flex justify-end gap-2">
-                                    <Button size="sm" variant="danger" onClick={() => handleVerifyUser(user.id, 'reject')}>Reject</Button>
-                                    <Button size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleVerifyUser(user.id, 'approve')}>
-                                       Approve
-                                    </Button>
-                                 </div>
-                              </td>
-                           </tr>
-                        ))}
-                        {unverifiedUsers.length === 0 && (
-                           <tr>
-                              <td colSpan={5} className="p-8 text-center text-slate-500">
-                                 <CheckCircle size={48} className="mx-auto text-emerald-200 mb-2" />
-                                 <p>All Caught Up! No pending verifications.</p>
-                              </td>
-                           </tr>
-                        )}
+                        {loadingUsers ? (
+                          <tr><td colSpan={5} className="p-8 text-center text-slate-400">Loading...</td></tr>
+                        ) : verificationRequests.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-8 text-center text-slate-500">
+                              <CheckCircle size={48} className="mx-auto text-emerald-200 mb-2" />
+                              <p>All Caught Up! No pending verifications.</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          verificationRequests.map(({ user, docUrl }: any) => (
+                          <tr key={user.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <img src={user.avatar} alt="" className="w-10 h-10 rounded-full" />
+                                <div>
+                                  <p className="font-bold text-slate-800 dark:text-white">{user.name}</p>
+                                  <p className="text-xs text-slate-500">{user.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4"><Badge variant="info">{user.role}</Badge></td>
+                            <td className="p-4">
+                              <button className="flex items-center gap-1 text-primary-600 hover:underline text-xs font-medium bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded">
+                                <FileText size={14} /> {docUrl}
+                              </button>
+                            </td>
+                            <td className="p-4 text-slate-600">{user.location}</td>
+                            <td className="p-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button size="sm" variant="danger" onClick={() => handleVerifyUser(user.id, 'reject')}>Reject</Button>
+                                <Button size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleVerifyUser(user.id, 'approve')}>
+                                  Approve
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        )))
+                        }
                      </tbody>
                   </table>
                </div>
@@ -215,7 +231,6 @@ export const Admin = () => {
                   </div>
                </Card>
             </div>
-
             <Card className="overflow-hidden">
                <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                   <h3 className="font-bold text-slate-700 dark:text-slate-200">Flagged Content Queue</h3>
@@ -326,7 +341,6 @@ export const Admin = () => {
                         </ResponsiveContainer>
                      </div>
                   </Card>
-                  
                   <Card className="p-6 h-[calc(50%-12px)]">
                      <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                         <BarChart2 size={18} className="text-amber-500"/> Campaign Categories
@@ -371,7 +385,6 @@ export const Admin = () => {
                    </div>
                 </div>
              </Card>
-
              <Card>
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700">
                    <h3 className="font-bold text-slate-700 dark:text-slate-200">Available Reports</h3>
@@ -410,7 +423,6 @@ export const Admin = () => {
       )}
 
       {/* --- MODALS --- */}
-      {/* Review Flag Modal */}
       <Modal isOpen={!!selectedFlag} onClose={() => setSelectedFlag(null)} title="Review Flagged Item">
          {selectedFlag && (
             <div className="space-y-4">
@@ -425,12 +437,10 @@ export const Admin = () => {
                      <Flag size={12} /> Reported by {selectedFlag.reporter}
                   </div>
                </div>
-
                <div>
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Admin Notes</label>
                   <textarea className="w-full mt-1 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 h-24 resize-none outline-none focus:ring-2 focus:ring-primary-500" placeholder="Add investigation notes..."></textarea>
                </div>
-
                <div className="grid grid-cols-2 gap-3">
                   <Button variant="outline" onClick={() => handleAction('Dismissed', selectedFlag)}>Dismiss Flag</Button>
                   <Button variant="primary" onClick={() => handleAction('Warning Sent', selectedFlag)}>Send Warning</Button>
