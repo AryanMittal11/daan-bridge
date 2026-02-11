@@ -2,6 +2,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma/client';
+import { authenticateJWT, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -64,6 +65,25 @@ router.post('/login', async (req, res) => {
     { expiresIn: '7d' }
   );
   res.json({ token, user: { ...user, passwordHash: undefined } });
+});
+
+// Verify Token / Get Current User
+router.get('/me', authenticateJWT, async (req: AuthRequest, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.sub },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash, ...userWithoutPassword } = user;
+    res.json({ user: userWithoutPassword });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 export default router;

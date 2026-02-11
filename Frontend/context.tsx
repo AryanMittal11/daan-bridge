@@ -10,6 +10,7 @@ interface AppContextType {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   notifications: number;
+  loading: boolean;
 }
 
 interface RegisterInput {
@@ -25,6 +26,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [notifications] = useState(3);
 
@@ -37,12 +39,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [theme]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Optionally validate token and set initial user
-      // Could call /api/me here
-      // For now, keep user as is on reload
-    }
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          API.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          const { data } = await API.get('/auth/me');
+          setUser(data.user);
+        } catch (error) {
+          console.error('Auth verification failed', error);
+          localStorage.removeItem('token');
+          delete API.defaults.headers.common['Authorization'];
+          setUser(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -79,7 +93,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   return (
-    <AppContext.Provider value={{ user, login, register, logout, theme, toggleTheme, notifications }}>
+    <AppContext.Provider value={{ user, login, register, logout, theme, toggleTheme, notifications, loading }}>
       {children}
     </AppContext.Provider>
   );

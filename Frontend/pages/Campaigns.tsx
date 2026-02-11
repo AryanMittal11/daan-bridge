@@ -36,7 +36,7 @@ export const Campaigns = () => {
 
   // Donate form state
   const [donateAmount, setDonateAmount] = useState("");
-  const [donateType, setDonateType] = useState<"MONEY" | "MATERIAL" | "BLOOD" | "VOLUNTEER">("MONEY");
+  const [donateType, setDonateType] = useState<"MONEY" | "MATERIAL" | "BLOOD" | "VOLUNTEER">("");
   const [donateItems, setDonateItems] = useState("");
   const [donateSubmitting, setDonateSubmitting] = useState(false);
   const [donationsList, setDonationsList] = useState<any[]>([]);
@@ -83,8 +83,29 @@ export const Campaigns = () => {
     );
 
   const handleCreate = async () => {
+    if (!newRequest.title || !newRequest.target || !newRequest.type) {
+      alert("Please fill in all required fields (Title, Target, Type).");
+      return;
+    }
+
     try {
-      await API.post("/campaigns/add", newRequest);
+      let imageUrl = newRequest.image;
+
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        try {
+          const { data: uploadData } = await API.post('/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          imageUrl = uploadData.url;
+        } catch (err) {
+          console.error("Image upload failed", err);
+          alert("Failed to upload image. Campaign will be created without it.");
+        }
+      }
+
+      await API.post("/campaigns/add", { ...newRequest, image: imageUrl });
       setShowCreateModal(false);
       setNewRequest({
         type: "MONETARY",
@@ -97,6 +118,7 @@ export const Campaigns = () => {
         location: "",
         deadline: "",
       });
+      setImageFile(null);
       await fetchCampaigns();
     } catch (e: any) {
       alert(
@@ -108,24 +130,30 @@ export const Campaigns = () => {
 
   const handleDonateSubmit = async () => {
     if (!showDonateModal) return;
+
+    // For Volunteer, if strictly just signing up, we can treat amount as 1 (person)
     const amount =
-      (donateType === "MONEY" || donateType === "BLOOD") ? Number(donateAmount) : donateItems ? 1 : 0;
-    if (donateType === "MATERIAL" && !donateItems.trim()) {
+      (showDonateModal.type === "MONETARY" || showDonateModal.type === "BLOOD")
+        ? Number(donateAmount)
+        : (showDonateModal.type === "VOLUNTEER" ? 1 : (donateItems ? 1 : 0));
+
+    if (showDonateModal.type === "MATERIAL" && !donateItems.trim()) {
       alert("Please describe the items you are donating.");
       return;
     }
-    if (donateType === "MONEY" && (!amount || amount <= 0)) {
+    if ((showDonateModal.type === "MONETARY" || showDonateModal.type === "BLOOD") && (!amount || amount <= 0)) {
       alert("Please enter a valid amount.");
       return;
     }
+
     setDonateSubmitting(true);
     try {
       const { data } = await API.post(
         `/campaigns/${showDonateModal.id}/donate`,
         {
-          amount: (donateType === "MONEY" || donateType === "BLOOD") ? amount : 1,
-          type: donateType,
-          items: donateType === "MATERIAL" ? donateItems : undefined,
+          amount,
+          type: showDonateModal.type,
+          items: showDonateModal.type === "MATERIAL" ? donateItems : undefined,
         },
       );
       setDonationStep(3);
@@ -346,9 +374,7 @@ export const Campaigns = () => {
           <Select
             label="Request Type"
             value={newRequest.type}
-            onChange={(e) =>
-              setNewRequest({ ...newRequest, type: e.target.value })
-            }
+            onChange={(e) => setNewRequest({ ...newRequest, type: e.target.value })}
           >
             <option value="MONETARY">Monetary Fundraiser</option>
             <option value="MATERIAL">Material Donation Drive</option>
@@ -452,39 +478,8 @@ export const Campaigns = () => {
                 <p className="text-slate-500 text-sm">
                   {showDonateModal.description}
                 </p>
-                <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setDonateType("MONEY")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium ${donateType === "MONEY" ? "bg-white dark:bg-slate-600 shadow" : ""}`}
-                  >
-                    Money
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDonateType("MATERIAL")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium ${donateType === "MATERIAL" ? "bg-white dark:bg-slate-600 shadow" : ""}`}
-                  >
-                    Material
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDonateType("BLOOD")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium ${donateType === "BLOOD" ? "bg-white dark:bg-slate-600 shadow" : ""}`}
-                  >
-                    Blood
-                  </button>
-                  {user?.role !== "ORGANIZATION" && (
-                    <button
-                    type="button"
-                    onClick={() => setDonateType("VOLUNTEER")}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium ${donateType === "VOLUNTEER" ? "bg-white dark:bg-slate-600 shadow" : ""}`}
-                  >
-                    Volunteer
-                  </button>
-                  )}
-                </div>
-                {donateType === "MONEY" && (
+
+                {showDonateModal.type === "MONETARY" && (
                   <>
                     <div className="grid grid-cols-3 gap-2">
                       {["10", "50", "100", "250", "500", "1000"].map((amt) => (
@@ -507,7 +502,7 @@ export const Campaigns = () => {
                     />
                   </>
                 )}
-                {donateType === "MATERIAL" && (
+                {showDonateModal.type === "MATERIAL" && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Description of items
@@ -520,7 +515,7 @@ export const Campaigns = () => {
                     />
                   </div>
                 )}
-                {donateType === "VOLUNTEER" && (
+                {showDonateModal.type === "VOLUNTEER" && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Volunteer Details
@@ -532,7 +527,7 @@ export const Campaigns = () => {
                     </div>
                   </div>
                 )}
-                {donateType === "BLOOD" && (
+                {showDonateModal.type === "BLOOD" && (
                   <>
                     <div className="grid grid-cols-3 gap-2">
                       {["10", "50", "100", "250", "500", "1000"].map((amt) => (
@@ -563,7 +558,7 @@ export const Campaigns = () => {
 
             {donationStep === 2 && (
               <div className="space-y-6">
-                {donateType === "MONEY" && (
+                {showDonateModal.type === "MONETARY" && (
                   <>
                     <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
                       <CreditCard size={24} />
@@ -575,7 +570,7 @@ export const Campaigns = () => {
                     </p>
                   </>
                 )}
-                {donateType === "MATERIAL" || donateType === "BLOOD" && (
+                {showDonateModal.type === "MATERIAL" || showDonateModal.type === "BLOOD" && (
                   <>
                     <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
                       <Truck size={24} />
@@ -588,7 +583,7 @@ export const Campaigns = () => {
                     </p>
                   </>
                 )}
-                {donateType === "VOLUNTEER" && (
+                {showDonateModal.type === "VOLUNTEER" && (
                   <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm text-slate-600 dark:text-slate-300">
                     Thank you for volunteering! The organizer will contact you with further details.
                   </div>
@@ -750,7 +745,7 @@ export const Campaigns = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-slate-800 dark:text-white">
-                          {d.type === "MONEY"
+                          {d.type === "MONETARY"
                             ? `$${d.amount}`
                             : d.items || `${d.amount} item(s)`}
                         </p>
