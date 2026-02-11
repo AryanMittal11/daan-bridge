@@ -103,18 +103,23 @@ model BloodDonation {
 }
 
 model BloodRequest {
-  id           String @id @default(uuid())
+  id             String             @id @default(uuid())
   organizationId String
-  bloodType    String
-  units        Int
-  hospitalName String
-  patientName  String
-  contactNo    String
+  bloodType      String
+  units          Int
+  hospitalName   String
+  patientName    String
+  contactNo      String
+  status         BloodRequestStatus @default(PENDING)
 
   createdAt DateTime @default(now())
 
   organization User @relation("orgBloodReq", fields: [organizationId], references: [id])
+}
 
+enum BloodRequestStatus {
+  FULFILLED
+  PENDING
 }
 
 enum DonationType {
