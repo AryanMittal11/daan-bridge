@@ -94,6 +94,7 @@ model BloodDonation {
   bloodType      String
   units          Int
   donatedAt      DateTime @default(now())
+  hasPleadged    Boolean  @default(false)
 
   donor        User @relation("DonorDonations", fields: [donorId], references: [id])
   organization User @relation("OrgDonations", fields: [organizationId], references: [id])
