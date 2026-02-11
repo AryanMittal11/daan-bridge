@@ -7,7 +7,9 @@ const router = express.Router();
 
 router.get("/all", authenticateJWT, async (req: AuthRequest, res: any) => {
   try {
+    const userId = req.user?.sub;
     const items = await prisma.bloodBank.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
     res.json({ items });
@@ -17,21 +19,39 @@ router.get("/all", authenticateJWT, async (req: AuthRequest, res: any) => {
   }
 });
 
-router.get("/donors", authenticateJWT, async (req: AuthRequest, res: any) => {
+router.get("/inventory/donators", authenticateJWT, async (req: AuthRequest, res: any) => {
   try {
-    const items = await prisma.bloodDonation.findMany({
+    const orgId = req.user?.sub;
+
+    // Find pledges for requests made by this organization
+    const items = await prisma.pledge.findMany({
+      where: {
+        request: {
+          organizationId: orgId
+        }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
       include: {
         donor: {
           select: {
             id: true,
             name: true,
-          },
+            email: true
+          }
         },
-      },
+        request: {
+          select: {
+            bloodType: true,
+            hospitalName: true
+          }
+        }
+      }
     });
+
     res.json({ items });
   } catch (error) {
-    console.error("Error fetching donors:", error);
+    console.error("Error fetching donators:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });
@@ -87,61 +107,94 @@ router.get(
   },
 );
 
+/* 
+* GET BROADCAST REQUESTS
+* - Returns all requests from other organizations
+* - Checks if the current user has pledged
+*/
 router.get("/req/broadcast", authenticateJWT, async (req: AuthRequest, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.sub;
 
-  const requests = await prisma.bloodRequest.findMany({
-    where: {
-      organizationId: {
-        not: userId,
+  try {
+    const requests = await prisma.bloodRequest.findMany({
+      where: {
+        organizationId: {
+          not: userId, // Don't show own requests
+        },
+        status: {
+          not: "FULFILLED",  // Optionally hide fulfilled ones, or show them with status
+        }
       },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      organization: true,
-    },
-  });
+      orderBy: { createdAt: "desc" },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            location: true,
+          }
+        },
+        pledges: {
+          where: { donorId: userId },
+        }
+      },
+    });
 
-  const pledges = await prisma.bloodDonation.findMany({
-    where: { donorId: userId },
-    select: { organizationId: true, bloodType: true },
-  });
+    const items = requests.map((req) => {
+      const hasPledged = req.pledges.length > 0;
+      return {
+        ...req,
+        hasPledged,
+        pledges: undefined, // Hide raw pledges array
+      };
+    });
 
-  const items = requests.map((req) => {
-    const hasPledged = pledges.some(
-      (p) =>
-        p.organizationId === req.organizationId &&
-        p.bloodType === req.bloodType,
-    );
-
-    return {
-      ...req,
-      hasPledged,
-    };
-  });
-
-  res.json({ items });
+    res.json({ items });
+  } catch (error) {
+    console.error("Error fetching broadcast requests:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
+
+/* 
+* FULFILL REQUEST (For Organizations)
+* - Updates the request status
+* - Deducts from inventory
+* - Records fulfilling entity
+*/
 router.post(
   "/req/fulfill/:id",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
     try {
-      const requestId = req.params.id;
+      const requestId = req.params.id as string;
+      const orgId = req.user?.sub;
+      const { quantity, address } = req.body; // New inputs from form
+
+      if (req.user?.role !== "ORGANIZATION") {
+        return res.status(403).json({ message: "Only organizations can fulfill requests" });
+      }
 
       // 1. Get the blood request
       const request = await prisma.bloodRequest.findUnique({
-        where: { id: requestId as string },
+        where: { id: requestId },
       });
 
       if (!request) {
         return res.status(404).json({ message: "Request not found" });
       }
 
+      if (request.status === "FULFILLED") {
+        return res.status(400).json({ message: "Request already fulfilled" });
+      }
+
       // 2. Check inventory for the blood type
       const inventory = await prisma.bloodBank.findFirst({
-        where: { bloodType: request.bloodType },
+        where: {
+          userId: orgId,
+          bloodType: request.bloodType
+        },
       });
 
       if (!inventory) {
@@ -150,31 +203,51 @@ router.post(
         });
       }
 
-      if (inventory.units < request.units) {
+      // Calculate remaining needed
+      const currentFulfilled = request.fulfilledUnits || 0;
+      const remaining = request.units - currentFulfilled;
+
+      // If quantity is provided, use it. Otherwise use remaining needed.
+      const fulfillQty = Number(quantity) || remaining;
+
+      if (fulfillQty <= 0) {
+        return res.status(400).json({ message: "Invalid fulfillment quantity" });
+      }
+
+      if (inventory.units < fulfillQty) {
         return res.status(400).json({
-          message: "Not enough blood units in inventory",
+          message: `Not enough blood units in inventory. Available: ${inventory.units}`,
         });
       }
 
-      // 3. Transaction: deduct units + update request
+      // Calculate new fulfilled amount
+      const newFulfilledTotal = currentFulfilled + fulfillQty;
+      const isTotallyFulfilled = newFulfilledTotal >= request.units;
+
+      // 3. Transaction: deduct inventory + update request progress
       await prisma.$transaction([
         prisma.bloodBank.update({
           where: { id: inventory.id },
           data: {
-            units: inventory.units - request.units,
+            units: inventory.units - fulfillQty,
           },
         }),
 
         prisma.bloodRequest.update({
           where: { id: requestId as string },
           data: {
-            status: "FULFILLED",
+            status: isTotallyFulfilled ? "FULFILLED" : "PENDING",
+            fulfilledUnits: newFulfilledTotal,
+            fulfilledBy: isTotallyFulfilled ? orgId : undefined,
+            fulfilledDate: isTotallyFulfilled ? new Date() : undefined,
           },
         }),
       ]);
 
       return res.json({
-        message: "Blood request fulfilled successfully",
+        message: isTotallyFulfilled
+          ? "Blood request fully fulfilled"
+          : `Blood request partially fulfilled. ${newFulfilledTotal}/${request.units} units provided.`,
       });
     } catch (error) {
       console.error("Error fulfilling request:", error);
@@ -183,14 +256,19 @@ router.post(
   },
 );
 
+/* 
+* PLEDGE TO DONATE (For Individuals)
+* - Creates a Pledge record
+*/
 router.post(
   "/req/pledge/:id",
   authenticateJWT,
   async (req: AuthRequest, res: Response) => {
     try {
-      const requestId = req.params.id;
+      const requestId = req.params.id as string;
       const userId = req.user?.sub;
       const role = req.user?.role;
+      const { name, address, contact, units } = req.body;
 
       if (role !== "INDIVIDUAL") {
         return res
@@ -210,11 +288,10 @@ router.post(
         return res.status(400).json({ message: "Request already fulfilled" });
       }
 
-      const existing = await prisma.bloodDonation.findFirst({
+      const existing = await prisma.pledge.findFirst({
         where: {
           donorId: userId,
-          organizationId: request.organizationId,
-          bloodType: request.bloodType,
+          requestId: requestId
         },
       });
 
@@ -224,14 +301,41 @@ router.post(
           .json({ message: "You already pledged for this request" });
       }
 
-      await prisma.bloodDonation.create({
-        data: {
-          donorId: userId,
-          organizationId: request.organizationId,
-          bloodType: request.bloodType,
-          units: request.units,
-        },
-      });
+      const pledgeUnits = Number(units) || request.units;
+
+      if (pledgeUnits > request.units) {
+        return res.status(400).json({ message: `Cannot pledge more than requested units (${request.units})` });
+      }
+
+      // Check if adding this pledge exceeds requirement
+      // Note: We allow over-pledging slightly? Or block?
+      // Strict: if (request.fulfilledUnits + pledgeUnits > request.units) error.
+      // Loose: Just clamp or allow. Let's allow but cap status. 
+      // User asked for progress bar, so let's just update progress.
+
+      const newFulfilled = (request.fulfilledUnits || 0) + pledgeUnits;
+      const isFulfilled = newFulfilled >= request.units;
+
+      await prisma.$transaction([
+        prisma.pledge.create({
+          data: {
+            donorId: userId as string,
+            requestId: requestId,
+            name: name || "Anonymous",
+            address: address || "",
+            contact: contact || "",
+            units: pledgeUnits,
+            status: "PENDING"
+          },
+        }),
+        prisma.bloodRequest.update({
+          where: { id: requestId },
+          data: {
+            fulfilledUnits: newFulfilled,
+            status: isFulfilled ? "FULFILLED" : "PENDING"
+          }
+        })
+      ]);
 
       return res.json({
         message: "Pledge recorded successfully",
@@ -242,5 +346,27 @@ router.post(
     }
   },
 );
+
+// GET pledges for a request (For My Requests view)
+router.get("/req/:id/pledges", authenticateJWT, async (req: AuthRequest, res) => {
+  try {
+    const requestId = req.params.id as string;
+
+    const pledges = await prisma.pledge.findMany({
+      where: { requestId },
+      include: {
+        donor: {
+          select: { name: true, avatar: true, email: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ pledges });
+  } catch (error) {
+    console.error("Error fetching pledges:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 export default router;

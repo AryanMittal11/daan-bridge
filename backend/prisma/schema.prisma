@@ -114,6 +114,7 @@ model BloodRequest {
   patientName    String
   contactNo      String
   status         BloodRequestStatus @default(PENDING)
+  fulfilledUnits Int                @default(0)
 
   createdAt DateTime @default(now())
 
