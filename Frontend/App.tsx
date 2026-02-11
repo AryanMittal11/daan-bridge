@@ -25,37 +25,45 @@ const Placeholder = ({ title }: { title: string }) => (
 );
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, logout } = useApp();
-  
+  const { user, logout, loading } = useApp();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   if (!user) return <Navigate to="/" replace />;
 
   // Verification Check: Block access if user is not verified AND not an Admin
   if (!user.verified && user.role !== 'ADMIN') {
-     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
-           <div className="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-full flex items-center justify-center mb-6 animate-pulse">
-              <ShieldAlert size={48} />
-           </div>
-           <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Verification Pending</h1>
-           <p className="text-slate-600 dark:text-slate-300 max-w-md mx-auto mb-8 leading-relaxed">
-              Thank you for registering with Daan Bridge. Your submitted documents are currently under review by our administration team. You will be granted full access once verified.
-           </p>
-           <div className="flex gap-4">
-               <button 
-                 onClick={() => window.location.reload()} 
-                 className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
-               >
-                 Check Status
-               </button>
-               <button 
-                 onClick={logout} 
-                 className="px-6 py-2 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
-               >
-                 <LogOut size={18}/> Logout
-               </button>
-           </div>
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-full flex items-center justify-center mb-6 animate-pulse">
+          <ShieldAlert size={48} />
         </div>
-     );
+        <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Verification Pending</h1>
+        <p className="text-slate-600 dark:text-slate-300 max-w-md mx-auto mb-8 leading-relaxed">
+          Thank you for registering with Daan Bridge. Your submitted documents are currently under review by our administration team. You will be granted full access once verified.
+        </p>
+        <div className="flex gap-4">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors"
+          >
+            Check Status
+          </button>
+          <button
+            onClick={logout}
+            className="px-6 py-2 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+          >
+            <LogOut size={18} /> Logout
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return <Layout>{children}</Layout>;

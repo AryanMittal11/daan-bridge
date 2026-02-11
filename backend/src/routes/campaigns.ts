@@ -24,9 +24,14 @@ router.post('/add', authenticateJWT, requireVerified, async (req, res) => {
   if (jwtUser.role !== 'ORGANIZATION' && jwtUser.role !== 'ADMIN') {
     return res.status(403).json({ message: 'Only organizations/admins can create campaigns.' });
   }
-  console.log("Jwt user" + jwtUser);
+
+  if (!title || !type || !target) {
+    return res.status(400).json({ message: 'Missing required fields: title, type, target' });
+  }
+
   const dbUser = await prisma.user.findUnique({ where: { id: jwtUser.sub } });
   if (!dbUser) return res.status(401).json({ message: 'User not found.' });
+
   const campaign = await prisma.campaign.create({
     data: {
       title,
@@ -49,14 +54,20 @@ router.post('/add', authenticateJWT, requireVerified, async (req, res) => {
 // Donate to a campaign (INDIVIDUAL or ORGANIZATION)
 router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) => {
   const campaignId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-  const { amount, type, items } = req.body; // type: MONEY | MATERIAL, amount: number
+  const { amount, type, items } = req.body; // type: MONEY | MATERIAL | VOLUNTEER | BLOOD
   const user = (req as any).user;
   const donorId = user.sub;
 
   const amountNum = Number(amount);
-  if (!amountNum || amountNum <= 0) {
+  // For volunteer, we count 1 volunteer as 1 unit of help, or 0 if strictly tracking hours (but logic says count people)
+  if (amountNum < 0) {
     return res.status(400).json({ message: 'Invalid amount.' });
   }
+  // Allow amount=0 if it's strictly volunteer sign-up without hours specified, but usually we want > 0
+  if (amountNum === 0 && type !== 'VOLUNTEER') {
+    return res.status(400).json({ message: 'Amount must be greater than 0.' });
+  }
+
 
   const dbUser = await prisma.user.findUnique({ where: { id: donorId } });
   if (!dbUser) return res.status(401).json({ message: 'User not found.' });
@@ -64,7 +75,9 @@ router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) =>
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign) return res.status(404).json({ message: 'Campaign not found.' });
 
-  const donationType = (type === 'MATERIAL' ? 'MATERIAL' : 'MONEY') as 'MONEY' | 'MATERIAL';
+  // Use correct type casting or validation
+  const validTypes = ['MONEY', 'MATERIAL', 'VOLUNTEER', 'BLOOD'];
+  const donationType = validTypes.includes(type) ? type : 'MONEY';
 
   const [donation] = await prisma.$transaction([
     prisma.donation.create({

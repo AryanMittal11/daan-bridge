@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useApp } from "../context";
 import { Card, Button, Badge, Modal, Input, Select } from "../components/UI";
 import { Droplet, Search, Calendar, MapPin, AlertCircle } from "lucide-react";
+import { PledgeModal } from "../components/PledgeModal";
+import { FulfillModal } from "../components/FulfillModal";
+import { DonatorsListModal } from "../components/DonatorsListModal";
 import API from "@/api";
 
 export const Blood = () => {
@@ -16,6 +19,7 @@ export const Blood = () => {
 
   const [bloodBanks, setBloodBanks] = useState<any[]>([]);
   const [bloodDonors, setBloodDonors] = useState<any[]>([]);
+  const [recentDonors, setRecentDonors] = useState<any[]>([]); // New state for Pledges
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [broadcastRequests, setBroadcastRequests] = useState<any[]>([]);
 
@@ -26,6 +30,14 @@ export const Blood = () => {
     patientName: "",
     contactNo: "",
   });
+
+  /* 
+   * MODAL STATES
+   */
+  const [pledgeModalOpen, setPledgeModalOpen] = useState(false);
+  const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
+  const [donatorsModalOpen, setDonatorsModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   // ------------------ FETCH FUNCTIONS ------------------
 
@@ -44,6 +56,15 @@ export const Blood = () => {
       setBloodDonors(data.items || []);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchRecentDonors = async () => {
+    try {
+      const { data } = await API.get("/inventory/donators");
+      setRecentDonors(data.items);
+    } catch (error) {
+      console.error("Error fetching recent donors:", error);
     }
   };
 
@@ -70,9 +91,13 @@ export const Blood = () => {
     fetchBloodDonors();
     fetchMyRequests();
     fetchBroadcastRequests();
-  }, []);
+    // Call fetchRecentDonors when the component mounts or activeTab changes to inventory
+    if (activeTab === "inventory" && user?.role !== "INDIVIDUAL") {
+      fetchRecentDonors();
+    }
+  }, [activeTab, user]);
 
-  // ------------------ CREATE REQUEST ------------------
+  // ------------------ HANDLERS ------------------
 
   const handleCreateBloodRequest = async () => {
     try {
@@ -95,26 +120,19 @@ export const Blood = () => {
     }
   };
 
-  const handleFulfillRequest = async (requestId: string) => {
-    try {
-      setLoading(true);
-      await API.post(`/blood/req/fulfill/${requestId}`);
-      fetchBloodBanks();
-      fetchBroadcastRequests();
-      setLoading(false);
-    } catch (err: any) {
-      setLoading(false);
-      alert(err?.response?.data?.message || "Failed to fulfill request");
-    }
+  const openPledgeModal = (req: any) => {
+    setSelectedRequest(req);
+    setPledgeModalOpen(true);
   };
 
-  const handlePledge = async (requestId: string) => {
-    try {
-      await API.post(`/blood/req/pledge/${requestId}`);
-      fetchBroadcastRequests();
-    } catch (err: any) {
-      alert(err?.response?.data?.message || "Failed to pledge");
-    }
+  const openFulfillModal = (req: any) => {
+    setSelectedRequest(req);
+    setFulfillModalOpen(true);
+  };
+
+  const openDonatorsModal = (req: any) => {
+    setSelectedRequest(req);
+    setDonatorsModalOpen(true);
   };
 
   // ------------------ Logics ------------------
@@ -171,11 +189,10 @@ export const Blood = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
-              className={`capitalize pb-2 ${
-                activeTab === tab
-                  ? "border-b-2 border-red-500 text-red-600"
-                  : "text-slate-500"
-              }`}
+              className={`capitalize pb-2 ${activeTab === tab
+                ? "border-b-2 border-red-500 text-red-600"
+                : "text-slate-500"
+                }`}
             >
               {tab.replace("-", " ")}
             </button>
@@ -201,11 +218,10 @@ export const Blood = () => {
 
                   <div className="my-2">
                     <Droplet
-                      className={`w-8 h-8 mx-auto ${
-                        stock.units < 10
-                          ? "text-red-500 animate-pulse"
-                          : "text-red-400"
-                      }`}
+                      className={`w-8 h-8 mx-auto ${stock.units < 10
+                        ? "text-red-500 animate-pulse"
+                        : "text-red-400"
+                        }`}
                       fill="currentColor"
                     />
                   </div>
@@ -229,7 +245,7 @@ export const Blood = () => {
           {/* Recent Donors Section */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-lg">Recent Donors</h3>
+              <h3 className="font-bold text-lg">Recent Pledges (Potential Donors)</h3>
 
               <div className="relative">
                 <Search
@@ -244,46 +260,51 @@ export const Blood = () => {
               </div>
             </div>
 
-            {bloodDonors.length === 0 ? (
-              <p className="text-sm text-slate-500">No donors available</p>
+            {recentDonors.length === 0 ? (
+              <p className="text-sm text-slate-500">No recent pledges found.</p>
             ) : (
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     <th className="pb-3 pl-2">Name</th>
                     <th className="pb-3">Blood Type</th>
-                    <th className="pb-3">Last Updated</th>
+                    <th className="pb-3">Units</th>
+                    <th className="pb-3">Pledged Date</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3">Contact</th>
                   </tr>
                 </thead>
 
                 <tbody className="text-sm">
-                  {bloodDonors.map((d) => (
+                  {recentDonors.map((pledge: any) => (
                     <tr
-                      key={d.id}
+                      key={pledge.id}
                       className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     >
                       <td className="py-3 pl-2 font-medium text-slate-700 dark:text-slate-300">
-                        {d.donor?.name}
+                        {pledge.name || pledge.donor?.name || "Anonymous"}
                       </td>
 
                       <td className="py-3">
-                        <Badge variant="danger">{d.bloodType}</Badge>
+                        <Badge variant="danger">{pledge.request?.bloodType}</Badge>
+                      </td>
+
+                      <td className="py-3">
+                        {pledge.units} Units
                       </td>
 
                       <td className="py-3 text-slate-500">
-                        Updated {timeAgo(d.updatedAt)}
+                        {timeAgo(pledge.createdAt)}
                       </td>
 
                       <td className="py-3">
-                        <Badge variant="success">Eligible</Badge>
+                        <Badge variant={pledge.status === "COMPLETED" ? "success" : "warning"}>
+                          {pledge.status}
+                        </Badge>
                       </td>
 
                       <td className="py-3">
-                        <button className="text-primary-600 hover:underline">
-                          Message
-                        </button>
+                        <span className="text-slate-600">{pledge.contact || pledge.donor?.email}</span>
                       </td>
                     </tr>
                   ))}
@@ -394,9 +415,18 @@ export const Blood = () => {
                 className="p-5 flex justify-between items-center"
               >
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <Badge variant="danger">{req.bloodType}</Badge>
-                    <span className="font-semibold">{req.units} Units</span>
+                  </div>
+
+                  <div className="mb-2 w-full max-w-[200px]">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{req.fulfilledUnits || 0} / {req.units} Units</span>
+                      <span className="text-slate-500">{Math.round(((req.fulfilledUnits || 0) / req.units) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                      <div className="bg-red-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(((req.fulfilledUnits || 0) / req.units) * 100, 100)}%` }}></div>
+                    </div>
                   </div>
 
                   <p className="text-sm text-slate-600">
@@ -415,84 +445,107 @@ export const Blood = () => {
                 </div>
 
                 {/* STATUS DISPLAY */}
-                {req.status === "FULFILLED" ? (
-                  <Badge variant="success">Fulfilled</Badge>
-                ) : (
-                  <Badge variant="warning">Pending</Badge>
-                )}
-              </Card>
+                <div className="flex flex-col gap-2 items-end">
+                  {req.status === "FULFILLED" ? (
+                    <Badge variant="success">Fulfilled</Badge>
+                  ) : (
+                    <Badge variant="warning">Pending</Badge>
+                  )
+                  }
+
+                  <Button size="sm" variant="outline" onClick={() => openDonatorsModal(req)}>
+                    See Donators
+                  </Button>
+                </div>
+              </Card >
             ))
           )}
-        </div>
+        </div >
       )}
 
       {/* BROADCASTS TAB */}
-      {activeTab === "broadcasts" && (
-        <div className="space-y-4">
-          {broadcastRequests.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-lg font-semibold text-slate-500">
-                No active broadcasts
-              </p>
-            </div>
-          ) : (
-            broadcastRequests.map((req) => (
-              <Card
-                key={req.id}
-                className="p-5 flex justify-between items-center"
-              >
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="danger">{req.bloodType}</Badge>
-                    <span className="font-semibold">{req.units} Units</span>
+      {
+        activeTab === "broadcasts" && (
+          <div className="space-y-4">
+            {broadcastRequests.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-lg font-semibold text-slate-500">
+                  No active broadcasts
+                </p>
+              </div>
+            ) : (
+              broadcastRequests.map((req) => (
+                <Card
+                  key={req.id}
+                  className="p-5 flex justify-between items-center"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="danger">{req.bloodType}</Badge>
+                    </div>
+
+                    <div className="mb-2 w-full max-w-[200px]">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{req.fulfilledUnits || 0} / {req.units} Units</span>
+                        <span className="text-slate-500">{Math.round(((req.fulfilledUnits || 0) / req.units) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div className="bg-red-500 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(((req.fulfilledUnits || 0) / req.units) * 100, 100)}%` }}></div>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-slate-600">
+                      Patient: {req.patientName}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      Hospital: {req.hospitalName}
+                    </p>
+
+                    {req.organization && (
+                      <p className="text-sm text-slate-500">
+                        Requested by: {req.organization.name}
+                      </p>
+                    )}
+
+                    <p className="text-xs text-slate-400 mt-1">
+                      Requested {timeAgo(req.createdAt)}
+                    </p>
                   </div>
 
-                  <p className="text-sm text-slate-600">
-                    Patient: {req.patientName}
-                  </p>
-                  <p className="text-sm text-slate-600">
-                    Hospital: {req.hospitalName}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Contact: {req.contactNo}
-                  </p>
+                  {/* STATUS OR ACTION */}
+                  <div>
+                    {req.status === "FULFILLED" ? (
+                      <Badge variant="success">Fulfilled</Badge>
+                    ) : user?.role === "INDIVIDUAL" ? (
+                      req.hasPledged ? (
+                        <Button disabled className="bg-green-100 text-green-700 hover:bg-green-200">
+                          Pledged
+                        </Button>
+                      ) : (
+                        <Button
+                          className="bg-red-600 hover:bg-red-700"
+                          onClick={() => openPledgeModal(req)}
+                        >
+                          Pledge to Donate
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => openFulfillModal(req)}
+                      >
+                        Fulfill from Inventory
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              ))
+            )
+            }
+          </div >
+        )
+      }
 
-                  <p className="text-xs text-slate-400 mt-1">
-                    Requested {timeAgo(req.createdAt)}
-                  </p>
-                </div>
-
-                {/* STATUS OR FULFILL BUTTON */}
-                {/* STATUS OR ACTION */}
-                {req.status === "FULFILLED" ? (
-                  <Badge variant="success">Fulfilled</Badge>
-                ) : user?.role === "INDIVIDUAL" ? (
-                  req.hasPledged ? (
-                    <Badge variant="success">Pledged</Badge>
-                  ) : (
-                    <Button
-                      className="bg-red-600 hover:bg-red-700"
-                      onClick={() => handlePledge(req.id)}
-                    >
-                      Pledge to Donate
-                    </Button>
-                  )
-                ) : (
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => handleFulfillRequest(req.id)}
-                    disabled={loading}
-                  >
-                    Fulfill from Inventory
-                  </Button>
-                )}
-              </Card>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* URGENT MODAL */}
       <Modal
         isOpen={showUrgentModal}
         onClose={() => setShowUrgentModal(false)}
@@ -568,6 +621,35 @@ export const Blood = () => {
           </Button>
         </div>
       </Modal>
-    </div>
+
+      {/* Modals */}
+      <PledgeModal
+        isOpen={pledgeModalOpen}
+        onClose={() => setPledgeModalOpen(false)}
+        request={selectedRequest}
+        onSuccess={() => {
+          fetchBroadcastRequests();
+          // Show thank you popup managed by local state or simple alert for now
+          alert("Thank you! Your pledge has been recorded.");
+        }}
+      />
+
+      <FulfillModal
+        isOpen={fulfillModalOpen}
+        onClose={() => setFulfillModalOpen(false)}
+        request={selectedRequest}
+        onSuccess={() => {
+          fetchBloodBanks(); // Update stock
+          fetchBroadcastRequests(); // Update status
+          alert("Thank you! The request has been fulfilled.");
+        }}
+      />
+
+      <DonatorsListModal
+        isOpen={donatorsModalOpen}
+        onClose={() => setDonatorsModalOpen(false)}
+        request={selectedRequest}
+      />
+    </div >
   );
 };
