@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../context";
 import { Card, Button, Badge, Modal, Input, Select } from "../components/UI";
-import { Droplet, Search, Calendar, MapPin, AlertCircle } from "lucide-react";
+import { Droplet, Search, Calendar, MapPin, AlertCircle, Plus, Pencil } from "lucide-react";
 import { PledgeModal } from "../components/PledgeModal";
 import { FulfillModal } from "../components/FulfillModal";
 import { DonatorsListModal } from "../components/DonatorsListModal";
+import { InventoryModal } from "../components/InventoryModal";
 import API from "@/api";
 
 export const Blood = () => {
@@ -37,6 +38,12 @@ export const Blood = () => {
   const [pledgeModalOpen, setPledgeModalOpen] = useState(false);
   const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
   const [donatorsModalOpen, setDonatorsModalOpen] = useState(false);
+
+  // Inventory Modal State
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState<any>(null);
+  const [inventoryLogs, setInventoryLogs] = useState<any[]>([]);
+
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
   // ------------------ FETCH FUNCTIONS ------------------
@@ -68,6 +75,15 @@ export const Blood = () => {
     }
   };
 
+  const fetchInventoryLogs = async () => {
+    try {
+      const { data } = await API.get("/blood/logs");
+      setInventoryLogs(data.logs || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchMyRequests = async () => {
     try {
       const { data } = await API.get("/blood/req/my");
@@ -93,7 +109,8 @@ export const Blood = () => {
     fetchBroadcastRequests();
     // Call fetchRecentDonors when the component mounts or activeTab changes to inventory
     if (activeTab === "inventory" && user?.role !== "INDIVIDUAL") {
-      fetchRecentDonors();
+      // fetchRecentDonors(); // Replaced by logs
+      fetchInventoryLogs();
     }
   }, [activeTab, user]);
 
@@ -201,9 +218,22 @@ export const Blood = () => {
       </div>
 
       {/* INVENTORY TAB */}
-      {/* INVENTORY TAB */}
       {activeTab === "inventory" && user?.role !== "INDIVIDUAL" && (
         <div className="space-y-8">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Current Inventory</h2>
+            <Button
+              onClick={() => {
+                setSelectedInventoryItem(null);
+                setShowInventoryModal(true);
+              }}
+              className="flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Add Inventory
+            </Button>
+          </div>
+
           {/* Blood Stock Grid */}
           {bloodBanks && bloodBanks.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
@@ -212,6 +242,17 @@ export const Blood = () => {
                   key={stock.id}
                   className="p-4 text-center border-t-4 border-red-500 relative group"
                 >
+                  <button
+                    onClick={() => {
+                      setSelectedInventoryItem(stock);
+                      setShowInventoryModal(true);
+                    }}
+                    className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                    title="Edit Inventory"
+                  >
+                    <Pencil size={14} />
+                  </button>
+
                   <h3 className="text-2xl font-black text-slate-800 dark:text-white">
                     {stock.bloodType}
                   </h3>
@@ -237,74 +278,65 @@ export const Blood = () => {
           ) : (
             <div className="text-center py-10">
               <p className="text-lg font-semibold text-slate-500">
-                No blood available
+                No blood available. Add some inventory to get started.
               </p>
             </div>
           )}
 
-          {/* Recent Donors Section */}
+          {/* Recent Activity Section */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-lg">Recent Pledges (Potential Donors)</h3>
-
-              <div className="relative">
-                <Search
-                  size={16}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="text"
-                  placeholder="Search donor..."
-                  className="pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-slate-900 rounded-lg outline-none border border-slate-200 dark:border-slate-700"
-                />
-              </div>
+              <h3 className="font-bold text-lg">Recent Activity Logs</h3>
             </div>
 
-            {recentDonors.length === 0 ? (
-              <p className="text-sm text-slate-500">No recent pledges found.</p>
+            {inventoryLogs.length === 0 ? (
+              <p className="text-sm text-slate-500">No recent activity.</p>
             ) : (
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    <th className="pb-3 pl-2">Name</th>
+                    <th className="pb-3 pl-2">Action</th>
                     <th className="pb-3">Blood Type</th>
                     <th className="pb-3">Units</th>
-                    <th className="pb-3">Pledged Date</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3">Contact</th>
+                    <th className="pb-3">Description</th>
+                    <th className="pb-3">Date</th>
                   </tr>
                 </thead>
 
                 <tbody className="text-sm">
-                  {recentDonors.map((pledge: any) => (
+                  {inventoryLogs.map((log: any) => (
                     <tr
-                      key={pledge.id}
+                      key={log.id}
                       className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     >
-                      <td className="py-3 pl-2 font-medium text-slate-700 dark:text-slate-300">
-                        {pledge.name || pledge.donor?.name || "Anonymous"}
-                      </td>
-
-                      <td className="py-3">
-                        <Badge variant="danger">{pledge.request?.bloodType}</Badge>
-                      </td>
-
-                      <td className="py-3">
-                        {pledge.units} Units
-                      </td>
-
-                      <td className="py-3 text-slate-500">
-                        {timeAgo(pledge.createdAt)}
-                      </td>
-
-                      <td className="py-3">
-                        <Badge variant={pledge.status === "COMPLETED" ? "success" : "warning"}>
-                          {pledge.status}
+                      <td className="py-3 pl-2">
+                        <Badge
+                          variant={
+                            log.action === "ADD"
+                              ? "success"
+                              : log.action === "FULFILL"
+                                ? "info"
+                                : "warning"
+                          }
+                        >
+                          {log.action}
                         </Badge>
                       </td>
 
+                      <td className="py-3 font-bold text-slate-700 dark:text-slate-300">
+                        {log.bloodType}
+                      </td>
+
                       <td className="py-3">
-                        <span className="text-slate-600">{pledge.contact || pledge.donor?.email}</span>
+                        {log.units}
+                      </td>
+
+                      <td className="py-3 text-slate-600 dark:text-slate-400">
+                        {log.description}
+                      </td>
+
+                      <td className="py-3 text-slate-500">
+                        {timeAgo(log.createdAt)}
                       </td>
                     </tr>
                   ))}
@@ -649,6 +681,20 @@ export const Blood = () => {
         isOpen={donatorsModalOpen}
         onClose={() => setDonatorsModalOpen(false)}
         request={selectedRequest}
+      />
+
+      <InventoryModal
+        isOpen={showInventoryModal}
+        onClose={() => setShowInventoryModal(false)}
+        inventoryItem={selectedInventoryItem}
+        onSuccess={() => {
+          fetchBloodBanks();
+          // fetchRecentDonors(); // No longer needed
+          // Fetch logs
+          try {
+            API.get("/blood/logs").then(({ data }) => setInventoryLogs(data.logs || []));
+          } catch (e) { }
+        }}
       />
     </div >
   );

@@ -30,6 +30,8 @@ model User {
   bloodRequest BloodRequest[] @relation("orgBloodReq")
   fulfilledRequests BloodRequest[] @relation("FulfillingOrg")
   pledges      Pledge[]
+  
+  inventoryLogs InventoryLog[]
 }
 
 model VerificationRequest {
@@ -198,4 +200,16 @@ enum RequestStatus {
   FULFILLED
   URGENT
   REJECTED
+}
+
+model InventoryLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  action         String   // "ADD", "EDIT", "FULFILL", "PLEDGE_FULFILL"
+  bloodType      String
+  units          Int      // Quantity changed or final quantity? Let's say Quantity Changed for now, or just log the action details
+  description    String?  // "Added 10 units", "Fulfilled request #123"
+  createdAt      DateTime @default(now())
+
+  organization   User     @relation(fields: [organizationId], references: [id])
 }

@@ -189,7 +189,6 @@ router.post(
         return res.status(400).json({ message: "Request already fulfilled" });
       }
 
-      // 2. Check inventory for the blood type
       const inventory = await prisma.bloodBank.findFirst({
         where: {
           userId: orgId,
@@ -224,7 +223,7 @@ router.post(
       const newFulfilledTotal = currentFulfilled + fulfillQty;
       const isTotallyFulfilled = newFulfilledTotal >= request.units;
 
-      // 3. Transaction: deduct inventory + update request progress
+      // 3. Transaction: deduct inventory + update request progress + log
       await prisma.$transaction([
         prisma.bloodBank.update({
           where: { id: inventory.id },
@@ -242,6 +241,16 @@ router.post(
             fulfilledDate: isTotallyFulfilled ? new Date() : undefined,
           },
         }),
+
+        prisma.inventoryLog.create({
+          data: {
+            organizationId: orgId,
+            action: "FULFILL",
+            bloodType: request.bloodType,
+            units: fulfillQty,
+            description: `Fulfilled request for ${request.patientName} (${fulfillQty} units)`,
+          }
+        })
       ]);
 
       return res.json({
@@ -255,6 +264,138 @@ router.post(
     }
   },
 );
+
+/*
+* ADD INVENTORY (For Organizations)
+*/
+router.post("/add", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const { bloodType, units } = req.body;
+    const orgId = req.user?.sub;
+    const role = req.user?.role;
+
+    if (role !== "ORGANIZATION") {
+      return res.status(403).json({ message: "Only organizations can add inventory" });
+    }
+
+    const unitsToAdd = Number(units);
+    if (isNaN(unitsToAdd) || unitsToAdd <= 0) {
+      return res.status(400).json({ message: "Invalid units" });
+    }
+
+    // Upsert: Create if not exists, update (increment) if exists
+    // We need to find by unique compound key or handle it manually if not set as unique in schema (which it is: @@unique([userId, bloodType]))
+
+    // Check if exists first to know previous value for log? Not strictly needed for ADD action.
+
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.bloodBank.findFirst({
+        where: { userId: orgId, bloodType }
+      });
+
+      if (existing) {
+        await tx.bloodBank.update({
+          where: { id: existing.id },
+          data: { units: { increment: unitsToAdd } }
+        });
+      } else {
+        await tx.bloodBank.create({
+          data: {
+            userId: orgId,
+            bloodType,
+            units: unitsToAdd
+          }
+        });
+      }
+
+      await tx.inventoryLog.create({
+        data: {
+          organizationId: orgId,
+          action: "ADD",
+          bloodType,
+          units: unitsToAdd,
+          description: `Added ${unitsToAdd} units`
+        }
+      });
+    });
+
+    res.json({ message: "Inventory updated successfully" });
+  } catch (error) {
+    console.error("Error adding inventory:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* EDIT INVENTORY (For Organizations)
+* Sets the absolute value of units
+*/
+router.put("/edit/:id", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const { units } = req.body;
+    const inventoryId = req.params.id as string;
+    const orgId = req.user?.sub;
+
+    const newUnits = Number(units);
+    if (isNaN(newUnits) || newUnits < 0) {
+      return res.status(400).json({ message: "Invalid units" });
+    }
+
+    const inventory = await prisma.bloodBank.findUnique({
+      where: { id: inventoryId }
+    });
+
+    if (!inventory || inventory.userId !== orgId) {
+      return res.status(404).json({ message: "Inventory item not found" });
+    }
+
+    const diff = newUnits - inventory.units;
+    if (diff === 0) {
+      return res.json({ message: "No changes made" });
+    }
+
+    await prisma.$transaction([
+      prisma.bloodBank.update({
+        where: { id: inventoryId },
+        data: { units: newUnits }
+      }),
+      prisma.inventoryLog.create({
+        data: {
+          organizationId: orgId,
+          action: "EDIT",
+          bloodType: inventory.bloodType,
+          units: Math.abs(diff),
+          description: `Updated units from ${inventory.units} to ${newUnits}`
+        }
+      })
+    ]);
+
+    res.json({ message: "Inventory updated successfully" });
+  } catch (error) {
+    console.error("Error editing inventory:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* GET INVENTORY LOGS
+*/
+router.get("/logs", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const orgId = req.user?.sub;
+
+    const logs = await prisma.inventoryLog.findMany({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    res.json({ logs });
+  } catch (error) {
+    console.error("Error fetching logs:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 /* 
 * PLEDGE TO DONATE (For Individuals)
