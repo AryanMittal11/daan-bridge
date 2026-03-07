@@ -9,6 +9,7 @@ import protectedRoutes from './routes/protected';
 import bloodRoutes from './routes/inventory';
 import campaignsRoutes from './routes/campaigns';
 import uploadRoutes from './routes/upload';
+import disasterRoutes from './routes/disaster';
 import prisma from "./prisma/client";
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api', protectedRoutes); // Other protected endpoints
 app.use('/api/campaigns', campaignsRoutes); // NEW: Campaigns API
 app.use('/api/blood', bloodRoutes); // NEW: Campaigns API
 app.use('/api/upload', uploadRoutes); // NEW: Upload API
+app.use('/api/disaster', disasterRoutes); // NEW: Disaster API
 
 app.get('/api/me', (req, res) => { res.send('Daan Bridge API up'); });
 

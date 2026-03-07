@@ -32,6 +32,10 @@ model User {
   pledges      Pledge[]
   
   inventoryLogs InventoryLog[]
+
+  sosAlerts        SOSAlert[]
+  disasterReports  DisasterReport[] @relation("ReportedDisasters")
+  resolvedReports  DisasterReport[] @relation("ResolvedDisasters")
 }
 
 model VerificationRequest {
@@ -212,4 +216,35 @@ model InventoryLog {
   createdAt      DateTime @default(now())
 
   organization   User     @relation(fields: [organizationId], references: [id])
+}
+
+model SOSAlert {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  lat       Float
+  lng       Float
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model DisasterReport {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation("ReportedDisasters", fields: [reporterId], references: [id])
+  type        String
+  description String
+  status      ReportStatus @default(PENDING)
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime @default(now())
+
+  resolvedById String?
+  resolvedBy   User?    @relation("ResolvedDisasters", fields: [resolvedById], references: [id])
+}
+
+enum ReportStatus {
+  PENDING
+  VERIFIED
+  RESOLVED
 }
