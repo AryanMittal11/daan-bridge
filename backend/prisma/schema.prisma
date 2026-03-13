@@ -36,6 +36,9 @@ model User {
   sosAlerts        SOSAlert[]
   disasterReports  DisasterReport[] @relation("ReportedDisasters")
   resolvedReports  DisasterReport[] @relation("ResolvedDisasters")
+
+  tutorProfile     TutorProfile?
+  enrolledSessions SessionEnrollment[]
 }
 
 model VerificationRequest {
@@ -247,4 +250,47 @@ enum ReportStatus {
   PENDING
   VERIFIED
   RESOLVED
+}
+
+model TutorProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  bio       String?
+  subjects  String
+  mode      String
+  address   String?
+  rating    Float    @default(0.0)
+  reviews   Int      @default(0)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  sessions  TutoringSession[]
+}
+
+model TutoringSession {
+  id          String   @id @default(uuid())
+  tutorId     String
+  tutor       TutorProfile @relation(fields: [tutorId], references: [id])
+  subject     String
+  date        String
+  time        String
+  mode        String
+  address     String?
+  maxStudents Int
+  status      String   @default("OPEN") // OPEN, FULL
+  createdAt   DateTime @default(now())
+
+  enrollments SessionEnrollment[]
+}
+
+model SessionEnrollment {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   TutoringSession @relation(fields: [sessionId], references: [id])
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id])
+  joinedAt  DateTime @default(now())
+  
+  @@unique([sessionId, studentId])
 }

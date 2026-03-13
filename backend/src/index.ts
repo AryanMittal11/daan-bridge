@@ -10,6 +10,7 @@ import bloodRoutes from './routes/inventory';
 import campaignsRoutes from './routes/campaigns';
 import uploadRoutes from './routes/upload';
 import disasterRoutes from './routes/disaster';
+import tutoringRoutes from './routes/tutoring';
 import prisma from "./prisma/client";
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/api/campaigns', campaignsRoutes); // NEW: Campaigns API
 app.use('/api/blood', bloodRoutes); // NEW: Campaigns API
 app.use('/api/upload', uploadRoutes); // NEW: Upload API
 app.use('/api/disaster', disasterRoutes); // NEW: Disaster API
+app.use('/api/tutoring', tutoringRoutes); // NEW: Tutoring API
 
 app.get('/api/me', (req, res) => { res.send('Daan Bridge API up'); });
 

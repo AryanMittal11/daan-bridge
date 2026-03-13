@@ -8,7 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Blood } from './pages/Blood';
 import { Disaster } from './pages/Disaster';
 import { Campaigns } from './pages/Campaigns';
-import { Volunteer } from './pages/Volunteer';
+import { Tutoring } from './pages/Tutoring';
 import { Logistics } from './pages/Logistics';
 import { Admin } from './pages/Admin';
 import { Chat } from './pages/Chat';
@@ -77,7 +77,7 @@ const AppRoutes = () => {
       <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
       <Route path="/blood" element={<ProtectedRoute><Blood /></ProtectedRoute>} />
       <Route path="/disaster" element={<ProtectedRoute><Disaster /></ProtectedRoute>} />
-      <Route path="/volunteer" element={<ProtectedRoute><Volunteer /></ProtectedRoute>} />
+      <Route path="/tutoring" element={<ProtectedRoute><Tutoring /></ProtectedRoute>} />
       <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
       <Route path="/logistics" element={<ProtectedRoute><Logistics /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
