@@ -39,7 +39,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { icon: Heart, label: 'Campaigns', path: '/campaigns', roles: ['INDIVIDUAL', 'ORGANIZATION'] },
     { icon: Droplet, label: 'Blood Bank', path: '/blood', roles: ['INDIVIDUAL', 'ORGANIZATION'] },
     { icon: ShieldAlert, label: 'Disaster Relief', path: '/disaster', roles: ['INDIVIDUAL', 'ORGANIZATION'] },
-    { icon: Activity, label: 'Volunteering', path: '/volunteer', roles: ['INDIVIDUAL'] },
+    { icon: Activity, label: 'Tutoring Center', path: '/tutoring', roles: ['INDIVIDUAL'] },
     { icon: Image, label: 'Gallery', path: '/gallery', roles: ['INDIVIDUAL', 'ORGANIZATION', 'ADMIN'] },
     { icon: Truck, label: 'Logistics', path: '/logistics', roles: ['ORGANIZATION'] },
     { icon: FileText, label: 'Reports', path: '/reports', roles: ['ORGANIZATION', 'ADMIN'] },
