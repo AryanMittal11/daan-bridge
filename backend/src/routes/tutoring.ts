@@ -39,7 +39,16 @@ router.get('/me', authenticateJWT, async (req: AuthRequest, res) => {
         const userId = req.user.sub;
         const profile = await prisma.tutorProfile.findUnique({
             where: { userId },
-            include: { sessions: { include: { _count: { select: { enrollments: true } } } } }
+            include: { 
+                sessions: { 
+                    include: { 
+                        _count: { select: { enrollments: true } },
+                        enrollments: { include: { student: { select: { id: true, name: true, email: true, avatar: true } } } },
+                        logs: { orderBy: { createdAt: 'desc' } }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                } 
+            }
         });
 
         // Check if enrolled sessions exist for the user (as student)
@@ -59,7 +68,7 @@ router.get('/me', authenticateJWT, async (req: AuthRequest, res) => {
 router.post('/sessions', authenticateJWT, async (req: AuthRequest, res) => {
     try {
         const userId = req.user.sub;
-        const { subject, date, time, mode, address, maxStudents } = req.body;
+        const { subject, date, time, mode, address, meetingLink, maxStudents } = req.body;
 
         const profile = await prisma.tutorProfile.findUnique({ where: { userId } });
         if (!profile) {
@@ -74,7 +83,17 @@ router.post('/sessions', authenticateJWT, async (req: AuthRequest, res) => {
                 time,
                 mode,
                 address,
+                meetingLink,
                 maxStudents: maxStudents || 5
+            }
+        });
+
+        await prisma.tutoringLog.create({
+            data: {
+                sessionId: session.id,
+                userId,
+                action: 'SESSION_CREATED',
+                details: `Session "${subject}" was created.`
             }
         });
 
@@ -134,6 +153,15 @@ router.post('/sessions/:id/join', authenticateJWT, async (req: AuthRequest, res)
             data: {
                 sessionId,
                 studentId: userId
+            }
+        });
+
+        await prisma.tutoringLog.create({
+            data: {
+                sessionId,
+                userId,
+                action: 'STUDENT_ENROLLED',
+                details: `A student enrolled in the session.`
             }
         });
 

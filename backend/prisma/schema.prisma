@@ -39,6 +39,7 @@ model User {
 
   tutorProfile     TutorProfile?
   enrolledSessions SessionEnrollment[]
+  tutoringLogs     TutoringLog[]
 }
 
 model VerificationRequest {
@@ -277,11 +278,13 @@ model TutoringSession {
   time        String
   mode        String
   address     String?
+  meetingLink String?
   maxStudents Int
   status      String   @default("OPEN") // OPEN, FULL
   createdAt   DateTime @default(now())
 
   enrollments SessionEnrollment[]
+  logs        TutoringLog[]
 }
 
 model SessionEnrollment {
@@ -293,4 +296,15 @@ model SessionEnrollment {
   joinedAt  DateTime @default(now())
   
   @@unique([sessionId, studentId])
+}
+
+model TutoringLog {
+  id          String   @id @default(uuid())
+  sessionId   String?
+  session     TutoringSession? @relation(fields: [sessionId], references: [id])
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String   // "SESSION_CREATED", "STUDENT_ENROLLED"
+  details     String?  // Optional extra details
+  createdAt   DateTime @default(now())
 }
