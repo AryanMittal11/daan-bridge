@@ -38,6 +38,10 @@ export const Campaigns = () => {
   const [donateAmount, setDonateAmount] = useState("");
   const [donateType, setDonateType] = useState<"MONEY" | "MATERIAL" | "BLOOD" | "VOLUNTEER">("");
   const [donateItems, setDonateItems] = useState("");
+  const [donateMaterialCategory, setDonateMaterialCategory] = useState("CLOTHES");
+  const [donateClothingType, setDonateClothingType] = useState("Shirt");
+  const [donateClothingSize, setDonateClothingSize] = useState("M");
+  const [donateQuantity, setDonateQuantity] = useState("1");
   const [donateSubmitting, setDonateSubmitting] = useState(false);
   const [donationsList, setDonationsList] = useState<any[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -131,13 +135,12 @@ export const Campaigns = () => {
   const handleDonateSubmit = async () => {
     if (!showDonateModal) return;
 
-    // For Volunteer, if strictly just signing up, we can treat amount as 1 (person)
     const amount =
       (showDonateModal.type === "MONETARY" || showDonateModal.type === "BLOOD")
         ? Number(donateAmount)
-        : (showDonateModal.type === "VOLUNTEER" ? 1 : (donateItems ? 1 : 0));
+        : (showDonateModal.type === "VOLUNTEER" ? 1 : Number(donateQuantity));
 
-    if (showDonateModal.type === "MATERIAL" && !donateItems.trim()) {
+    if (showDonateModal.type === "MATERIAL" && donateMaterialCategory === "OTHER" && !donateItems.trim()) {
       alert("Please describe the items you are donating.");
       return;
     }
@@ -148,12 +151,19 @@ export const Campaigns = () => {
 
     setDonateSubmitting(true);
     try {
+      const payloadDetails = showDonateModal.type === "MATERIAL" ? {
+          category: donateMaterialCategory,
+          name: donateMaterialCategory === "CLOTHES" ? `${donateClothingType} - Size ${donateClothingSize}` : donateItems,
+          structured: donateMaterialCategory === "CLOTHES" ? { type: donateClothingType, size: donateClothingSize } : null
+      } : null;
+
       const { data } = await API.post(
         `/campaigns/${showDonateModal.id}/donate`,
         {
-          amount,
+          amount: showDonateModal.type === "MATERIAL" ? Number(donateQuantity) : amount,
           type: showDonateModal.type,
-          items: showDonateModal.type === "MATERIAL" ? donateItems : undefined,
+          items: showDonateModal.type === "MATERIAL" ? (donateMaterialCategory === "CLOTHES" ? `${donateQuantity} ${donateClothingType} Size ${donateClothingSize}` : donateItems) : undefined,
+          details: payloadDetails
         },
       );
       setDonationStep(3);
@@ -175,6 +185,8 @@ export const Campaigns = () => {
     setDonateAmount("");
     setDonateItems("");
     setDonateType("MONEY");
+    setDonateMaterialCategory("CLOTHES");
+    setDonateQuantity("1");
   };
 
   const getAnalyticsData = (campaign: any) => {
@@ -503,15 +515,55 @@ export const Campaigns = () => {
                   </>
                 )}
                 {showDonateModal.type === "MATERIAL" && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Description of items
-                    </label>
-                    <textarea
-                      className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none h-24 resize-none"
-                      placeholder="e.g. 2 boxes winter clothes, 5 blankets"
-                      value={donateItems}
-                      onChange={(e) => setDonateItems(e.target.value)}
+                  <div className="space-y-4">
+                    <Select label="Material Category" value={donateMaterialCategory} onChange={e => setDonateMaterialCategory(e.target.value)}>
+                        <option value="CLOTHES">CLOTHES</option>
+                        <option value="FOOD">FOOD</option>
+                        <option value="MEDICINE">MEDICINE</option>
+                        <option value="OTHER">OTHER</option>
+                    </Select>
+                    
+                    {donateMaterialCategory === "CLOTHES" && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <Select label="Clothing Type" value={donateClothingType} onChange={e => setDonateClothingType(e.target.value)}>
+                                <option>Shirt</option>
+                                <option>Pant</option>
+                                <option>Dress</option>
+                                <option>Jacket</option>
+                                <option>Shoes</option>
+                                <option>Blanket</option>
+                            </Select>
+                            <Select label="Size" value={donateClothingSize} onChange={e => setDonateClothingSize(e.target.value)}>
+                                <option>XS</option>
+                                <option>S</option>
+                                <option>M</option>
+                                <option>L</option>
+                                <option>XL</option>
+                                <option>XXL</option>
+                            </Select>
+                        </div>
+                    )}
+                    
+                    {(donateMaterialCategory === "OTHER" || donateMaterialCategory === "FOOD" || donateMaterialCategory === "MEDICINE") && (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Description of items
+                          </label>
+                          <textarea
+                            className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none h-24 resize-none"
+                            placeholder="e.g. 2 boxes of apples"
+                            value={donateItems}
+                            onChange={(e) => setDonateItems(e.target.value)}
+                          />
+                        </div>
+                    )}
+
+                    <Input
+                        label="Quantity Given"
+                        type="number"
+                        min="1"
+                        value={donateQuantity}
+                        onChange={e => setDonateQuantity(e.target.value)}
                     />
                   </div>
                 )}

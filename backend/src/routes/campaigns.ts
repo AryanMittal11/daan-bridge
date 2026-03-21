@@ -41,6 +41,7 @@ router.post('/add', authenticateJWT, requireVerified, async (req, res) => {
       unit: unit || 'USD',
       category,
       image,
+      details: req.body.details || null,
       location,
       deadline,
       organizer: dbUser.name,
@@ -54,7 +55,7 @@ router.post('/add', authenticateJWT, requireVerified, async (req, res) => {
 // Donate to a campaign (INDIVIDUAL or ORGANIZATION)
 router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) => {
   const campaignId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0];
-  const { amount, type, items } = req.body; // type: MONEY | MATERIAL | VOLUNTEER | BLOOD
+  const { amount, type, items, details } = req.body; // type: MONEY | MATERIAL | VOLUNTEER | BLOOD
   const user = (req as any).user;
   const donorId = user.sub;
 
@@ -75,11 +76,12 @@ router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) =>
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign) return res.status(404).json({ message: 'Campaign not found.' });
 
-  // Use correct type casting or validation
   const validTypes = ['MONEY', 'MATERIAL', 'VOLUNTEER', 'BLOOD'];
   const donationType = validTypes.includes(type) ? type : 'MONEY';
 
-  const [donation] = await prisma.$transaction([
+  const donationItemsStr = details && Object.keys(details).length > 0 ? JSON.stringify(details) : (items || null);
+
+  const transactionItems: any[] = [
     prisma.donation.create({
       data: {
         campaignId,
@@ -87,14 +89,67 @@ router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) =>
         donorName: dbUser.name,
         amount: amountNum,
         type: donationType,
-        items: items || null,
+        items: donationItemsStr,
       },
     }),
     prisma.campaign.update({
       where: { id: campaignId },
       data: { raised: campaign.raised + amountNum },
     }),
-  ]);
+  ];
+
+  if (donationType === 'MONEY') {
+    transactionItems.push(
+      prisma.inventoryItem.upsert({
+        where: {
+          organizationId_category_name: {
+            organizationId: campaign.createdBy,
+            category: 'MONEY',
+            name: 'Campaign Funds',
+          }
+        },
+        update: {
+          quantity: { increment: amountNum }
+        },
+        create: {
+          organizationId: campaign.createdBy,
+          category: 'MONEY',
+          name: 'Campaign Funds',
+          quantity: amountNum,
+          unit: campaign.unit || 'USD',
+        }
+      })
+    );
+  } else if (donationType === 'MATERIAL' && details) {
+    const invCategory = details.category || "OTHER";
+    const invName = details.name || "Donated Material";
+    transactionItems.push(
+      prisma.inventoryItem.upsert({
+        where: {
+          organizationId_category_name: {
+            organizationId: campaign.createdBy,
+            category: invCategory,
+            name: invName,
+          }
+        },
+        update: {
+          quantity: { increment: amountNum },
+          details: details.structured || null
+        },
+        create: {
+          organizationId: campaign.createdBy,
+          category: invCategory,
+          name: invName,
+          quantity: amountNum,
+          unit: "Items",
+          details: details.structured || null
+        }
+      })
+    );
+  }
+
+  const result = await prisma.$transaction(transactionItems);
+  const donation = result[0];
 
   res.json({ donation, campaign: { ...campaign, raised: campaign.raised + amountNum } });
 });

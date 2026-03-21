@@ -9,12 +9,12 @@ import { Blood } from './pages/Blood';
 import { Disaster } from './pages/Disaster';
 import { Campaigns } from './pages/Campaigns';
 import { Tutoring } from './pages/Tutoring';
-import { Logistics } from './pages/Logistics';
 import { Admin } from './pages/Admin';
 import { Chat } from './pages/Chat';
 import { MapView } from './pages/Map';
 import { Gallery } from './pages/Gallery';
 import { ShieldAlert, LogOut } from 'lucide-react';
+import { Inventory } from './pages/Inventory';
 
 // Placeholder components for remaining simple routes
 const Placeholder = ({ title }: { title: string }) => (
@@ -79,7 +79,7 @@ const AppRoutes = () => {
       <Route path="/disaster" element={<ProtectedRoute><Disaster /></ProtectedRoute>} />
       <Route path="/tutoring" element={<ProtectedRoute><Tutoring /></ProtectedRoute>} />
       <Route path="/gallery" element={<ProtectedRoute><Gallery /></ProtectedRoute>} />
-      <Route path="/logistics" element={<ProtectedRoute><Logistics /></ProtectedRoute>} />
+      <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
       <Route path="/map" element={<ProtectedRoute><MapView /></ProtectedRoute>} />
