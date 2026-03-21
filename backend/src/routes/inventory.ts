@@ -250,6 +250,24 @@ router.post(
             units: fulfillQty,
             description: `Fulfilled request for ${request.patientName} (${fulfillQty} units)`,
           }
+        }),
+
+        prisma.inventoryItem.upsert({
+          where: {
+            organizationId_category_name: {
+              organizationId: orgId as string,
+              category: "BLOOD",
+              name: `Blood ${request.bloodType}`
+            }
+          },
+          update: { quantity: { decrement: fulfillQty } },
+          create: {
+            organizationId: orgId as string,
+            category: "BLOOD",
+            name: `Blood ${request.bloodType}`,
+            quantity: inventory.units - fulfillQty,
+            unit: "Units"
+          }
         })
       ]);
 
@@ -317,6 +335,24 @@ router.post("/add", authenticateJWT, async (req: AuthRequest, res: Response) => 
           description: `Added ${unitsToAdd} units`
         }
       });
+
+      await tx.inventoryItem.upsert({
+        where: {
+          organizationId_category_name: {
+            organizationId: orgId as string,
+            category: "BLOOD",
+            name: `Blood ${bloodType}`,
+          }
+        },
+        update: { quantity: { increment: unitsToAdd } },
+        create: {
+          organizationId: orgId as string,
+          category: "BLOOD",
+          name: `Blood ${bloodType}`,
+          quantity: unitsToAdd,
+          unit: "Units"
+        }
+      });
     });
 
     res.json({ message: "Inventory updated successfully" });
@@ -366,6 +402,23 @@ router.put("/edit/:id", authenticateJWT, async (req: AuthRequest, res: Response)
           bloodType: inventory.bloodType,
           units: Math.abs(diff),
           description: `Updated units from ${inventory.units} to ${newUnits}`
+        }
+      }),
+      prisma.inventoryItem.upsert({
+        where: {
+          organizationId_category_name: {
+            organizationId: orgId as string,
+            category: "BLOOD",
+            name: `Blood ${inventory.bloodType}`
+          }
+        },
+        update: { quantity: newUnits },
+        create: {
+          organizationId: orgId as string,
+          category: "BLOOD",
+          name: `Blood ${inventory.bloodType}`,
+          quantity: newUnits,
+          unit: "Units"
         }
       })
     ]);
@@ -506,6 +559,132 @@ router.get("/req/:id/pledges", authenticateJWT, async (req: AuthRequest, res) =>
     res.json({ pledges });
   } catch (error) {
     console.error("Error fetching pledges:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* GET GENERAL INVENTORY
+*/
+router.get("/general", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const orgId = req.user?.sub;
+    const items = await prisma.inventoryItem.findMany({
+      where: { organizationId: orgId },
+      orderBy: { lastUpdated: 'desc' }
+    });
+    res.json({ items });
+  } catch (error) {
+    console.error("Error fetching general inventory:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* ADD/INCREMENT GENERAL INVENTORY
+*/
+router.post("/general/add", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const orgId = req.user?.sub;
+    const role = req.user?.role;
+    const { category, name, quantity, unit, details } = req.body;
+
+    if (role !== "ORGANIZATION") {
+      return res.status(403).json({ message: "Only organizations can manage inventory" });
+    }
+
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      return res.status(400).json({ message: "Invalid quantity" });
+    }
+
+    await prisma.inventoryItem.upsert({
+      where: {
+        organizationId_category_name: {
+          organizationId: orgId as string,
+          category,
+          name,
+        }
+      },
+      update: {
+        quantity: { increment: qty },
+        unit: unit || "Units",
+        ...(details !== undefined && { details })
+      },
+      create: {
+        organizationId: orgId as string,
+        category,
+        name,
+        quantity: qty,
+        unit: unit || "Units",
+        ...(details !== undefined && { details })
+      }
+    });
+
+    res.json({ message: "Inventory updated successfully" });
+  } catch (error) {
+    console.error("Error adding to general inventory:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* UPDATE GENERAL INVENTORY
+*/
+router.put("/general/edit/:id", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const orgId = req.user?.sub;
+    const { quantity } = req.body;
+    const inventoryId = req.params.id as string;
+
+    const newQty = Number(quantity);
+    if (isNaN(newQty) || newQty < 0) {
+      return res.status(400).json({ message: "Invalid quantity" });
+    }
+
+    const inventory = await prisma.inventoryItem.findUnique({
+      where: { id: inventoryId }
+    });
+
+    if (!inventory || inventory.organizationId !== orgId) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    await prisma.inventoryItem.update({
+      where: { id: inventoryId },
+      data: { quantity: newQty }
+    });
+
+    res.json({ message: "Inventory updated successfully" });
+  } catch (error) {
+    console.error("Error updating general inventory:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+/*
+* DELETE GENERAL INVENTORY
+*/
+router.delete("/general/:id", authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    const orgId = req.user?.sub;
+    const inventoryId = req.params.id as string;
+
+    const inventory = await prisma.inventoryItem.findUnique({
+      where: { id: inventoryId }
+    });
+
+    if (!inventory || inventory.organizationId !== orgId) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    await prisma.inventoryItem.delete({
+      where: { id: inventoryId }
+    });
+
+    res.json({ message: "Inventory deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting item:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });

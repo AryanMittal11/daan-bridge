@@ -32,6 +32,7 @@ model User {
   pledges      Pledge[]
   
   inventoryLogs InventoryLog[]
+  inventoryItems InventoryItem[] @relation("OrgInventory")
 
   sosAlerts        SOSAlert[]
   disasterReports  DisasterReport[] @relation("ReportedDisasters")
@@ -67,6 +68,7 @@ model Campaign {
   location    String?
   urgent      Boolean       @default(false)
   category    String?
+  details     Json?
   createdBy   String
   createdAt   DateTime      @default(now())
   user        User?         @relation(fields: [createdBy], references: [id], name: "UserCampaigns")
@@ -307,4 +309,19 @@ model TutoringLog {
   action      String   // "SESSION_CREATED", "STUDENT_ENROLLED"
   details     String?  // Optional extra details
   createdAt   DateTime @default(now())
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   User     @relation("OrgInventory", fields: [organizationId], references: [id])
+  category       String   // "BLOOD", "MONEY", "CLOTHES", "FOOD", "MEDICINE", "OTHER"
+  name           String   // e.g., "Funds", "Winter Blankets"
+  quantity       Float
+  unit           String   // "INR", "Pieces", "Kg", "Units"
+  details        Json?
+  createdAt      DateTime @default(now())
+  lastUpdated    DateTime @updatedAt
+
+  @@unique([organizationId, category, name])
 }

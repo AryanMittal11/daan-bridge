@@ -25,6 +25,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api', protectedRoutes); // Other protected endpoints
 app.use('/api/campaigns', campaignsRoutes); // NEW: Campaigns API
 app.use('/api/blood', bloodRoutes); // NEW: Campaigns API
+app.use('/api/inventory', bloodRoutes); // Aliasing bloodRoutes to inventory
 app.use('/api/upload', uploadRoutes); // NEW: Upload API
 app.use('/api/disaster', disasterRoutes); // NEW: Disaster API
 app.use('/api/tutoring', tutoringRoutes); // NEW: Tutoring API
