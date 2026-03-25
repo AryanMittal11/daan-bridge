@@ -1,35 +1,93 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context';
 import { Card, Button, Modal, Input } from '../components/UI';
-import { MOCK_GALLERY_POSTS } from '../data';
-import { Heart, MessageCircle, Share2, Upload, Image as ImageIcon, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Upload, Image as ImageIcon, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+import API from '../api';
 
 export const Gallery = () => {
   const { user } = useApp();
-  const [posts, setPosts] = useState(MOCK_GALLERY_POSTS);
+  const [posts, setPosts] = useState<any[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadForm, setUploadForm] = useState({ caption: '', image: '' });
+  
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [showDropdown, setShowDropdown] = useState<string | null>(null);
 
-  const handleUpload = () => {
-    const newPost = {
-      id: `g${Date.now()}`,
-      userId: user?.id || 'u1',
-      userName: user?.name || 'Anonymous',
-      userAvatar: user?.avatar || 'https://i.pravatar.cc/150',
-      image: uploadForm.image || 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=800',
-      caption: uploadForm.caption,
-      likes: 0,
-      date: 'Just now',
-      role: user?.role || 'INDIVIDUAL'
-    };
-    setPosts([newPost, ...posts]);
-    setShowUploadModal(false);
-    setUploadForm({ caption: '', image: '' });
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const fetchPosts = async () => {
+    try {
+      const res = await API.get('/gallery');
+      setPosts(res.data);
+    } catch (err) {
+      console.error("Failed to fetch gallery posts:", err);
+    }
   };
 
-  const handleLike = (postId: string) => {
-    setPosts(posts.map(p => p.id === postId ? { ...p, likes: p.likes + 1 } : p));
+  const handleUpload = async () => {
+    try {
+      const payload = {
+         caption: uploadForm.caption,
+         image: uploadForm.image || 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=800'
+      };
+      await API.post('/gallery', payload);
+      fetchPosts();
+      setShowUploadModal(false);
+      setUploadForm({ caption: '', image: '' });
+    } catch (err) {
+      console.error("Failed to upload post:", err);
+    }
+  };
+
+  const handleLike = async (postId: string) => {
+    try {
+      const res = await API.post(`/gallery/${postId}/like`);
+      // Update state
+      setPosts(posts.map(p => {
+        if (p.id === postId) {
+          const isCurrentlyLiked = p.likedBy?.some((u: any) => u.id === user?.id);
+          const newLikedBy = isCurrentlyLiked 
+              ? p.likedBy.filter((u: any) => u.id !== user?.id)
+              : [...(p.likedBy || []), { id: user?.id }];
+          return { ...p, likedBy: newLikedBy };
+        }
+        return p;
+      }));
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+    }
+  };
+
+  const handleDelete = async (postId: string) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await API.delete(`/gallery/${postId}`);
+      fetchPosts();
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingPost) return;
+    try {
+      await API.put(`/gallery/${editingPost.id}`, { caption: editingPost.caption });
+      fetchPosts();
+      setEditingPost(null);
+    } catch (err) {
+      console.error("Failed to update post:", err);
+    }
+  };
+
+  const isOwner = (postUserId: string) => {
+    return user && user.id === postUserId;
+  };
+
+  const formatDate = (dateString: string) => {
+    const d = new Date(dateString);
+    return isNaN(d.getTime()) ? 'Just now' : d.toLocaleDateString();
   };
 
   return (
@@ -47,30 +105,68 @@ export const Gallery = () => {
       {/* Gallery Grid */}
       <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
         {posts.map(post => (
-          <Card key={post.id} className="break-inside-avoid mb-6">
-             <div className="p-4 flex items-center justify-between">
+          <Card key={post.id} className="break-inside-avoid mb-6 overflow-visible">
+             <div className="p-4 flex items-center justify-between relative">
                 <div className="flex items-center gap-3">
-                   <img src={post.userAvatar} alt={post.userName} className="w-8 h-8 rounded-full object-cover" />
+                   <img src={post.user?.avatar || 'https://i.pravatar.cc/150'} alt={post.user?.name || 'Anonymous'} className="w-8 h-8 rounded-full object-cover" />
                    <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-white">{post.userName}</p>
-                      <p className="text-[10px] text-slate-500">{post.date} • {post.role}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-white">{post.user?.name || 'Anonymous'}</p>
+                      <p className="text-[10px] text-slate-500">{formatDate(post.createdAt)} • {post.user?.role || 'INDIVIDUAL'}</p>
                    </div>
                 </div>
-                <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal size={18} /></button>
+                {isOwner(post.userId) && (
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowDropdown(showDropdown === post.id ? null : post.id)}
+                      className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
+                    {showDropdown === post.id && (
+                      <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
+                        <button 
+                          onClick={() => {
+                            setEditingPost(post);
+                            setShowDropdown(null);
+                          }}
+                          className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                        >
+                          <Edit size={14} /> Edit
+                        </button>
+                        <button 
+                          onClick={() => {
+                            handleDelete(post.id);
+                            setShowDropdown(null);
+                          }}
+                          className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 size={14} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
              </div>
              <div className="relative aspect-auto">
                 <img src={post.image} alt="Post" className="w-full h-auto object-cover" />
              </div>
              <div className="p-4">
-                <p className="text-sm text-slate-700 dark:text-slate-300 mb-4">{post.caption}</p>
+                <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 whitespace-pre-wrap">{post.caption}</p>
                 <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
                    <div className="flex gap-4">
                       <button 
                         onClick={() => handleLike(post.id)}
-                        className="flex items-center gap-1 text-slate-500 hover:text-red-500 transition-colors"
+                        className={`flex items-center gap-1 transition-colors ${
+                          post.likedBy?.some((u: any) => u.id === user?.id) 
+                            ? 'text-red-500' 
+                            : 'text-slate-500 hover:text-red-500'
+                        }`}
                       >
-                         <Heart size={20} />
-                         <span className="text-sm">{post.likes}</span>
+                         <Heart 
+                           size={20} 
+                           fill={post.likedBy?.some((u: any) => u.id === user?.id) ? "currentColor" : "none"} 
+                         />
+                         <span className="text-sm">{post.likedBy?.length || 0}</span>
                       </button>
                       <button className="flex items-center gap-1 text-slate-500 hover:text-primary-500 transition-colors">
                          <MessageCircle size={20} />
@@ -99,11 +195,17 @@ export const Gallery = () => {
                 )}
                 <input 
                    type="file" 
+                   accept="image/*"
                    className="absolute inset-0 opacity-0 cursor-pointer" 
                    onChange={(e) => {
-                       // Mock image preview
                        if(e.target.files && e.target.files[0]) {
-                           setUploadForm({...uploadForm, image: URL.createObjectURL(e.target.files[0])})
+                           const reader = new FileReader();
+                           reader.onload = (event) => {
+                             if(event.target?.result) {
+                               setUploadForm({...uploadForm, image: event.target.result as string});
+                             }
+                           };
+                           reader.readAsDataURL(e.target.files[0]);
                        }
                    }} 
                 />
@@ -118,6 +220,25 @@ export const Gallery = () => {
                 ></textarea>
              </div>
              <Button className="w-full" onClick={handleUpload} disabled={!uploadForm.caption}>Post to Gallery</Button>
+         </div>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={!!editingPost} onClose={() => setEditingPost(null)} title="Edit Post">
+         <div className="space-y-4">
+             <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Caption / Thought</label>
+                <textarea 
+                   className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none h-24 resize-none"
+                   placeholder="Share your experience..."
+                   value={editingPost?.caption || ''}
+                   onChange={e => setEditingPost({...editingPost, caption: e.target.value})}
+                ></textarea>
+             </div>
+             <div className="flex gap-2">
+               <Button className="w-full bg-slate-200 text-slate-800 hover:bg-slate-300" onClick={() => setEditingPost(null)}>Cancel</Button>
+               <Button className="w-full" onClick={handleEditSubmit} disabled={!editingPost?.caption}>Save Changes</Button>
+             </div>
          </div>
       </Modal>
     </div>
