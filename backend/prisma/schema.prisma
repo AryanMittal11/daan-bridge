@@ -41,6 +41,8 @@ model User {
   tutorProfile     TutorProfile?
   enrolledSessions SessionEnrollment[]
   tutoringLogs     TutoringLog[]
+  galleryPosts     GalleryPost[]
+  likedPosts       GalleryPost[] @relation("LikedPosts")
 }
 
 model VerificationRequest {
@@ -324,4 +326,15 @@ model InventoryItem {
   lastUpdated    DateTime @updatedAt
 
   @@unique([organizationId, category, name])
+}
+
+model GalleryPost {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  image     String
+  caption   String
+  likedBy   User[]   @relation("LikedPosts")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
