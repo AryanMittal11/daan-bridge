@@ -15,6 +15,7 @@ import { MapView } from './pages/Map';
 import { Gallery } from './pages/Gallery';
 import { ShieldAlert, LogOut } from 'lucide-react';
 import { Inventory } from './pages/Inventory';
+import 'leaflet/dist/leaflet.css';
 
 // Placeholder components for remaining simple routes
 const Placeholder = ({ title }: { title: string }) => (
