@@ -53,26 +53,25 @@ export const Chat = () => {
     if (!socket) return;
     
     const handleReceiveMessage = (msg: any) => {
-      let isForActiveChat = false;
+      const isForActiveChat = msg.conversationId === selectedChatId;
       
+      if (isForActiveChat && msg.senderId !== user?.id) {
+         msg.isRead = true; // optimistically mark read so unread badge doesn't jump
+         markRead(msg.conversationId);
+      }
+
       setMessages(prev => {
-        const isCurrentChat = prev.length > 0 ? prev[0].conversationId === msg.conversationId : msg.conversationId === selectedChatId;
-        if (isCurrentChat || msg.conversationId === selectedChatId) {
-           isForActiveChat = true;
+        if (isForActiveChat) {
            return [...prev, msg];
         }
         return prev;
       });
       
-      if (isForActiveChat && msg.senderId !== user?.id) {
-         markRead(msg.conversationId);
-      }
-      
       setConversations(prev => {
         const idx = prev.findIndex(c => c.id === msg.conversationId);
         if (idx !== -1) {
           const updated = [...prev];
-          const newMsgList = [msg, ...updated[idx].messages.filter((m: any) => m.id !== msg.id)];
+          const newMsgList = [msg, ...(updated[idx].messages || []).filter((m: any) => m.id !== msg.id)];
           updated[idx] = { ...updated[idx], messages: newMsgList, updatedAt: msg.createdAt };
           const [moved] = updated.splice(idx, 1);
           updated.unshift(moved);
@@ -225,7 +224,7 @@ export const Chat = () => {
                      const isOnlineList = other ? onlineUsers.has(other.id) : false;
                      
                      // Unread messages count exactly
-                     const unreadCount = conv.messages?.filter((m: any) => !m.isRead && m.senderId !== user?.id).length || 0;
+                     const unreadCount = (conv.messages || []).filter((m: any) => !m.isRead && m.senderId !== user?.id).length;
                      const hasUnread = unreadCount > 0;
                      
                      return (
@@ -286,7 +285,6 @@ export const Chat = () => {
                      </span>
                   </div>
                </div>
-               <button className="text-slate-400 hover:text-slate-600"><MoreVertical size={20}/></button>
             </div>
             
             <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50 dark:bg-slate-900/50">

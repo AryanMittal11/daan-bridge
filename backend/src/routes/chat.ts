@@ -111,8 +111,13 @@ router.post('/conversations', async (req: Request, res: Response) => {
       include: {
         participants: {
            select: { id: true, name: true, avatar: true, role: true }
+        },
+        messages: {
+           orderBy: { createdAt: 'desc' },
+           take: 50
         }
-      }
+      },
+      orderBy: { updatedAt: 'desc' }
     });
 
     const exactMatch = existingConversations.find((conv: any) => conv.participants.length === 2);
@@ -132,7 +137,8 @@ router.post('/conversations', async (req: Request, res: Response) => {
       include: {
         participants: {
           select: { id: true, name: true, avatar: true, role: true }
-        }
+        },
+        messages: true
       }
     });
 
