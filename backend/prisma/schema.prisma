@@ -43,6 +43,9 @@ model User {
   tutoringLogs     TutoringLog[]
   galleryPosts     GalleryPost[]
   likedPosts       GalleryPost[] @relation("LikedPosts")
+
+  conversations    Conversation[] @relation("UserConversations")
+  messagesSent     Message[]
 }
 
 model VerificationRequest {
@@ -337,4 +340,23 @@ model GalleryPost {
   likedBy   User[]   @relation("LikedPosts")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Conversation {
+  id           String    @id @default(uuid())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  participants User[]    @relation("UserConversations")
+  messages     Message[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id])
+  text           String
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
 }
