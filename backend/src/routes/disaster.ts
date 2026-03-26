@@ -55,6 +55,7 @@ router.post('/sos', authenticateJWT, requireRole(['INDIVIDUAL']), async (req: Au
 router.post('/report', authenticateJWT, requireRole(['INDIVIDUAL']), async (req: AuthRequest, res) => {
     try {
         const { type, description, lat, lng } = req.body;
+        console.log("logged values", type, description, lat, lng);
         const reporterId = req.user.sub;
 
         if (!type || !description) {
@@ -114,28 +115,53 @@ router.get('/live', async (req, res) => {
 });
 
 // 4. Update Report Status (Organization or Individual can verify/resolve)
-router.put('/report/:id/status', authenticateJWT, async (req: AuthRequest, res) => {
+router.put('/report/:id/status', authenticateJWT,  async (req: AuthRequest, res) => {
     try {
-        const { id } = req.params;
-        const { status } = req.body;
+      const { id } = req.params;
+      const { status } = req.body;
 
-        if (!['PENDING', 'VERIFIED', 'RESOLVED'].includes(status)) {
-            return res.status(400).json({ error: 'Invalid status' });
-        }
+      // ✅ Validate input
+      const allowedStatuses = ['PENDING', 'VERIFIED', 'RESOLVED'] as const;
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status' });
+      }
 
-        const updatedReport = await prisma.disasterReport.update({
-            where: { id: id as string },
-            data: {
-                status: status as any,
-                resolvedById: status === 'RESOLVED' ? req.user.sub : undefined
-            }, // casting to any to bypass Prisma strict enum tying since we verified it
+      // ✅ Update report
+      const updatedReport = await prisma.disasterReport.update({
+        where: { id: id as string },
+        data: {
+          status,
+          resolvedById: status === 'RESOLVED' ? req.user.sub : null,
+        },
+      });
+
+      if (status === 'RESOLVED') {
+        await prisma.sOSAlert.updateMany({
+          where: {
+            userId: updatedReport.reporterId,
+            active: true,
+          },
+          data: {
+            active: false,
+          },
         });
+      }
 
-        res.json({ message: 'Status updated', report: updatedReport });
-    } catch (err: any) {
-        console.error(err);
-        res.status(500).json({ error: 'Failed to update report status.' });
+      return res.status(200).json({
+        message: 'Status updated successfully',
+        report: updatedReport,
+      });
+
+    } catch (error: any) {
+      console.error('Update report status error:', error);
+      if (error.code === 'P2025') {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      return res.status(500).json({
+        error: 'Failed to update report status',
+      });
     }
-});
+  }
+);
 
 export default router;

@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
 
 export function authenticateJWT(req: AuthRequest, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.split(' ')[1];
+  console.log(token);
   if (!token) {
     return res.status(401).json({ message: 'No token provided.' });
   }
