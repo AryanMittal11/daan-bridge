@@ -66,7 +66,6 @@ export const Campaigns = () => {
     setLoading(true);
     try {
       const { data } = await API.get("/campaigns/all");
-      console.log(data);
       setCampaigns(data.campaigns || []);
     } finally {
       setLoading(false);
@@ -74,12 +73,16 @@ export const Campaigns = () => {
   };
 
   const filteredCampaigns = campaigns
-    .filter(
-      (c) =>
-        activeTab === "All" ||
+    .filter((c) => {
+      if (activeTab === "All") return true;
+      if (activeTab === "Active (Mine)") return c.createdBy === user?.id && c.status !== "FULFILLED" && c.status !== "REJECTED";
+      if (activeTab === "Inactive (Mine)") return c.createdBy === user?.id && (c.status === "FULFILLED" || c.status === "REJECTED");
+      if (activeTab === "Others Campaigns") return c.createdBy !== user?.id;
+      return (
         c.type === activeTab.toUpperCase() ||
-        (c.category && c.category.toLowerCase() === activeTab.toLowerCase()),
-    )
+        (c.category && c.category.toLowerCase() === activeTab.toLowerCase())
+      );
+    })
     .filter(
       (c) =>
         (c.title || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -242,19 +245,20 @@ export const Campaigns = () => {
         )}
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-4">
+        <div className="relative w-full">
           <input
             type="text"
             placeholder="Search campaigns..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary-500 outline-none"
+            className="w-full pl-4 pr-4 py-3 text-lg rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-primary-500 outline-none shadow-sm"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {[
             "All",
+            ...(user?.role === "ORGANIZATION" ? ["Active (Mine)", "Inactive (Mine)", "Others Campaigns"] : []),
             "Disaster",
             "Education",
             "Health",
@@ -341,7 +345,7 @@ export const Campaigns = () => {
                   </div>
                   <div className="flex gap-2">
                     {(user?.role === "INDIVIDUAL" ||
-                      user?.role === "ORGANIZATION") && (
+                      user?.role === "ORGANIZATION") && campaign.createdBy !== user?.id && (
                         campaign.raised >= campaign.target ? (
                           <Button size="sm" disabled>
                             Completed
@@ -386,7 +390,14 @@ export const Campaigns = () => {
           <Select
             label="Request Type"
             value={newRequest.type}
-            onChange={(e) => setNewRequest({ ...newRequest, type: e.target.value })}
+            onChange={(e) => {
+              const type = e.target.value;
+              let unit = "USD";
+              if (type === "MATERIAL") unit = "Items";
+              if (type === "VOLUNTEER") unit = "Volunteers";
+              if (type === "BLOOD") unit = "Pints";
+              setNewRequest({ ...newRequest, type, unit });
+            }}
           >
             <option value="MONETARY">Monetary Fundraiser</option>
             <option value="MATERIAL">Material Donation Drive</option>
@@ -416,19 +427,47 @@ export const Campaigns = () => {
                 setNewRequest({ ...newRequest, unit: e.target.value })
               }
             >
-              <option>USD</option>
-              <option>Items</option>
-              <option>Volunteers</option>
-              <option>Pints</option>
+              {newRequest.type === "MONETARY" && (
+                <>
+                  <option value="USD">USD</option>
+                  <option value="INR">INR</option>
+                  <option value="EUR">EUR</option>
+                </>
+              )}
+              {newRequest.type === "MATERIAL" && (
+                <>
+                  <option value="Items">Items</option>
+                  <option value="Kits">Kits</option>
+                  <option value="Boxes">Boxes</option>
+                </>
+              )}
+              {newRequest.type === "VOLUNTEER" && (
+                <option value="Volunteers">Volunteers</option>
+              )}
+              {newRequest.type === "BLOOD" && (
+                <>
+                  <option value="Pints">Pints</option>
+                  <option value="Units">Units</option>
+                </>
+              )}
             </Select>
           </div>
-          <Input
+          <Select
             label="Category"
             value={newRequest.category}
             onChange={(e) =>
               setNewRequest({ ...newRequest, category: e.target.value })
             }
-          />
+          >
+            <option value="">Select Category</option>
+            <option value="Disaster">Disaster Relief</option>
+            <option value="Education">Education</option>
+            <option value="Health">Health</option>
+            <option value="Welfare">Welfare</option>
+            <option value="Environment">Environment</option>
+            <option value="Animals">Animal Welfare</option>
+            <option value="Other">Other</option>
+          </Select>
           <Input
             label="Location"
             value={newRequest.location}
@@ -451,6 +490,7 @@ export const Campaigns = () => {
           />
 
           <Input
+            type="date"
             label="Deadline"
             value={newRequest.deadline}
             onChange={(e) =>
