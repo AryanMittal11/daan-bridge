@@ -66,7 +66,6 @@ export const Campaigns = () => {
     setLoading(true);
     try {
       const { data } = await API.get("/campaigns/all");
-      console.log(data);
       setCampaigns(data.campaigns || []);
     } finally {
       setLoading(false);

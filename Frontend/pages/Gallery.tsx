@@ -9,6 +9,8 @@ export const Gallery = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadForm, setUploadForm] = useState({ caption: '', image: '' });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   
   const [editingPost, setEditingPost] = useState<any>(null);
   const [showDropdown, setShowDropdown] = useState<string | null>(null);
@@ -28,16 +30,32 @@ export const Gallery = () => {
 
   const handleUpload = async () => {
     try {
+      setUploading(true);
+      let imageUrl = uploadForm.image || 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=800';
+      
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('image', imageFile);
+        const { data: uploadData } = await API.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        imageUrl = uploadData.url;
+      }
+
       const payload = {
          caption: uploadForm.caption,
-         image: uploadForm.image || 'https://images.unsplash.com/photo-1593113598332-cd288d649433?auto=format&fit=crop&q=80&w=800'
+         image: imageUrl
       };
       await API.post('/gallery', payload);
       fetchPosts();
       setShowUploadModal(false);
       setUploadForm({ caption: '', image: '' });
+      setImageFile(null);
     } catch (err) {
       console.error("Failed to upload post:", err);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -199,13 +217,10 @@ export const Gallery = () => {
                    className="absolute inset-0 opacity-0 cursor-pointer" 
                    onChange={(e) => {
                        if(e.target.files && e.target.files[0]) {
-                           const reader = new FileReader();
-                           reader.onload = (event) => {
-                             if(event.target?.result) {
-                               setUploadForm({...uploadForm, image: event.target.result as string});
-                             }
-                           };
-                           reader.readAsDataURL(e.target.files[0]);
+                           const file = e.target.files[0];
+                           setImageFile(file);
+                           const previewUrl = URL.createObjectURL(file);
+                           setUploadForm({...uploadForm, image: previewUrl});
                        }
                    }} 
                 />
@@ -219,7 +234,9 @@ export const Gallery = () => {
                    onChange={e => setUploadForm({...uploadForm, caption: e.target.value})}
                 ></textarea>
              </div>
-             <Button className="w-full" onClick={handleUpload} disabled={!uploadForm.caption}>Post to Gallery</Button>
+             <Button className="w-full" onClick={handleUpload} disabled={!uploadForm.caption || uploading}>
+               {uploading ? 'Uploading...' : 'Post to Gallery'}
+             </Button>
          </div>
       </Modal>
 

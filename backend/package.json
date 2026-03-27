@@ -12,10 +12,12 @@
     "@prisma/client": "^5.22.0",
     "@types/multer": "^2.0.0",
     "bcryptjs": "latest",
+    "cloudinary": "^1.41.3",
     "cors": "latest",
     "express": "latest",
     "jsonwebtoken": "latest",
     "multer": "^2.0.2",
+    "multer-storage-cloudinary": "^4.0.0",
     "prisma": "^5.22.0",
     "socket.io": "^4.8.3"
   },
