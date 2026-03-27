@@ -76,6 +76,10 @@ router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) =>
   const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
   if (!campaign) return res.status(404).json({ message: 'Campaign not found.' });
 
+  if (campaign.createdBy === donorId) {
+    return res.status(400).json({ message: 'You cannot donate to your own campaign.' });
+  }
+
   const validTypes = ['MONEY', 'MATERIAL', 'VOLUNTEER', 'BLOOD'];
   const donationType = validTypes.includes(type) ? type : 'MONEY';
 
