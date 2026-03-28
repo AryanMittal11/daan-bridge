@@ -46,6 +46,7 @@ model User {
 
   conversations    Conversation[] @relation("UserConversations")
   messagesSent     Message[]
+  notifications    Notification[]
 }
 
 model VerificationRequest {
@@ -359,4 +360,26 @@ model Message {
   text           String
   isRead         Boolean      @default(false)
   createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      NotificationType
+  read      Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  URGENT
+  ADMIN
 }

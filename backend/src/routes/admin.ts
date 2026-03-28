@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../prisma/client';
 import { authenticateJWT } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
+import { createNotification } from '../utils/notificationHelper';
 
 const router = express.Router();
 
@@ -29,6 +30,19 @@ router.post('/verify-user', authenticateJWT, requireRole(['ADMIN']), async (req,
     where: { id: userId },
     data: { verified: action === 'APPROVED' },
   });
+
+  // Notify user about verification result
+  const isApproved = action === 'APPROVED';
+  createNotification(
+    userId,
+    isApproved ? '✅ Account Approved' : '❌ Account Rejected',
+    isApproved
+      ? 'Your account has been verified! You now have full access to Daan Bridge.'
+      : 'Your verification request has been rejected. Please contact support for more information.',
+    isApproved ? 'SUCCESS' : 'WARNING',
+    '/dashboard',
+    true // send email
+  );
 
   res.json({ success: true });
 });

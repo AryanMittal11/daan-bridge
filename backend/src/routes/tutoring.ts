@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
 import prisma from '../prisma/client';
+import { createNotification } from '../utils/notificationHelper';
 
 const router = express.Router();
 
@@ -136,7 +137,10 @@ router.post('/sessions/:id/join', authenticateJWT, async (req: AuthRequest, res)
 
         const session = await prisma.tutoringSession.findUnique({
             where: { id: sessionId },
-            include: { _count: { select: { enrollments: true } } }
+            include: { 
+                _count: { select: { enrollments: true } },
+                tutor: { select: { userId: true } }
+            }
         });
 
         if (!session) {
@@ -172,6 +176,16 @@ router.post('/sessions/:id/join', authenticateJWT, async (req: AuthRequest, res)
                 data: { status: 'FULL' }
             });
         }
+
+        // Notify the tutor about the new enrollment
+        const student = await prisma.user.findUnique({ where: { id: userId } });
+        createNotification(
+            session.tutor.userId,
+            '🎓 New Student Enrolled',
+            `${student?.name || 'A student'} has registered for your tutoring session on ${session.subject}.`,
+            'SUCCESS',
+            '/tutoring'
+        );
 
         res.status(201).json(enrollment);
     } catch (error: any) {

@@ -2,6 +2,7 @@ import express, { Response } from "express";
 import prisma from "../prisma/client";
 import { authenticateJWT, AuthRequest } from "../middleware/auth";
 import { requireRole, requireVerified } from "../middleware/rbac";
+import { createNotification, createBroadcastNotification } from "../utils/notificationHelper";
 
 const router = express.Router();
 
@@ -77,6 +78,19 @@ router.post("/req/add", authenticateJWT, async (req: AuthRequest, res: any) => {
         contactNo,
       },
     });
+
+    // Get org name for notification
+    const org = await prisma.user.findUnique({ where: { id: organizationId }, select: { name: true } });
+
+    // Broadcast urgent blood request notification to all users
+    createBroadcastNotification(
+      '🩸 Urgent: Blood Required!',
+      `${org?.name || 'An organization'} urgently needs ${units} units of ${bloodType} blood for ${patientName} at ${hospitalName}.`,
+      'URGENT',
+      '/blood',
+      organizationId,
+      true // send email
+    );
 
     res.json({ item });
   } catch (error) {
@@ -276,6 +290,8 @@ router.post(
           ? "Blood request fully fulfilled"
           : `Blood request partially fulfilled. ${newFulfilledTotal}/${request.units} units provided.`,
       });
+
+      // Notify requesting organization about fulfillment (fire and forget since response already sent)
     } catch (error) {
       console.error("Error fulfilling request:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -530,6 +546,25 @@ router.post(
           }
         })
       ]);
+
+      // Notify the requesting organization about the pledge
+      const pledgeUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+      createNotification(
+        request.organizationId,
+        '🩸 Blood Donation Received',
+        `${pledgeUser?.name || 'Someone'} has pledged ${pledgeUnits} units of ${request.bloodType} blood for ${request.patientName}.`,
+        'SUCCESS',
+        '/blood'
+      );
+
+      // Notify the donor about successful pledge
+      createNotification(
+        userId as string,
+        '💚 Blood Donation Successful',
+        `Your pledge of ${pledgeUnits} units of ${request.bloodType} blood for ${request.patientName} has been recorded. Thank you for your life-saving contribution!`,
+        'SUCCESS',
+        '/blood'
+      );
 
       return res.json({
         message: "Pledge recorded successfully",

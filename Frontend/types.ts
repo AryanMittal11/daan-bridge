@@ -76,9 +76,10 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'URGENT' | 'ADMIN';
   read: boolean;
-  date: string;
+  link?: string;
+  createdAt: string;
 }
 
 // New Types for Logistics & Volunteering

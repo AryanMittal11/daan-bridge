@@ -2,6 +2,7 @@ import express from 'express';
 import prisma from '../prisma/client';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
 import { requireRole, requireVerified } from '../middleware/rbac';
+import { createNotification } from '../utils/notificationHelper';
 
 const router = express.Router();
 
@@ -154,6 +155,24 @@ router.post('/:id/donate', authenticateJWT, requireVerified, async (req, res) =>
 
   const result = await prisma.$transaction(transactionItems);
   const donation = result[0];
+
+  // Notify campaign organizer about the donation
+  createNotification(
+    campaign.createdBy,
+    '🎉 Donation Received!',
+    `${dbUser.name} donated ${amountNum} ${campaign.unit} (${donationType}) to your campaign "${campaign.title}".`,
+    'SUCCESS',
+    '/campaigns'
+  );
+
+  // Notify donor about successful donation
+  createNotification(
+    donorId,
+    '💚 Donation Successful',
+    `Your ${donationType.toLowerCase()} donation of ${amountNum} ${campaign.unit} to "${campaign.title}" was successful. Thank you!`,
+    'SUCCESS',
+    '/campaigns'
+  );
 
   res.json({ donation, campaign: { ...campaign, raised: campaign.raised + amountNum } });
 });
