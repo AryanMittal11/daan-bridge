@@ -13,10 +13,12 @@ import disasterRoutes from './routes/disaster';
 import tutoringRoutes from './routes/tutoring';
 import galleryRoutes from './routes/gallery';
 import chatRoutes from './routes/chat';
+import notificationRoutes from './routes/notifications';
 import prisma from "./prisma/client";
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { setupChatSockets } from './sockets/chat';
+import { setupChatSockets, onlineUsers } from './sockets/chat';
+import { initNotificationHelper } from './utils/notificationHelper';
 
 const app = express();
 const httpServer = createServer(app);
@@ -44,6 +46,7 @@ app.use('/api/disaster', disasterRoutes); // NEW: Disaster API
 app.use('/api/tutoring', tutoringRoutes); // NEW: Tutoring API
 app.use('/api/gallery', galleryRoutes); // NEW: Gallery API
 app.use('/api/chat', chatRoutes); // NEW: Chat API
+app.use('/api/notifications', notificationRoutes); // Notifications API
 
 app.get('/api/me', (req, res) => { res.send('Daan Bridge API up'); });
 
@@ -55,5 +58,7 @@ app.get("/", async (req, res) => {
 const PORT = process.env.PORT || 4000;
 
 setupChatSockets(io);
+initNotificationHelper(io, onlineUsers);
 
 httpServer.listen(PORT, () => console.log(`Server running on :${PORT}`));
+

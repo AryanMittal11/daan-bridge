@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import prisma from '../prisma/client';
+import { createBroadcastNotification, createNotification } from '../utils/notificationHelper';
 
 const router = Router();
 
@@ -27,14 +28,13 @@ router.post('/sos', authenticateJWT, requireRole(['INDIVIDUAL']), async (req: Au
 
         // Otherwise create new active SOS alert
         if (lat === undefined || lng === undefined) {
-            // If location is omitted because of permission, we just store without coords, or nullable coords?
-            // Our schema currently requires lat and lng. Let's make lat/lng 0 if omitted, or we could change schema to make them nullable.
-            // Easiest is to change schema later if needed, or just insert 0,0 locally. The frontend tries to get location.
-            // But let's assume if it fails, the frontend sends something or we default to 0,0.
         }
 
         const latitude = lat ?? 0.0;
         const longitude = lng ?? 0.0;
+
+        // Get user name for notification
+        const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
 
         const newAlert = await prisma.sOSAlert.create({
             data: {
@@ -44,6 +44,17 @@ router.post('/sos', authenticateJWT, requireRole(['INDIVIDUAL']), async (req: Au
                 active: true,
             },
         });
+
+        // Broadcast SOS notification to all verified users
+        createBroadcastNotification(
+            '🚨 SOS Alert — Urgent Help Needed!',
+            `${user?.name || 'Someone'} has activated an SOS alert and needs immediate assistance! Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+            'URGENT',
+            '/disaster',
+            userId,
+            true // send email
+        );
+
         res.json({ message: 'SOS activated', alert: newAlert, active: true });
     } catch (err: any) {
         console.error(err);
@@ -145,6 +156,15 @@ router.put('/report/:id/status', authenticateJWT,  async (req: AuthRequest, res)
             active: false,
           },
         });
+
+        // Notify the reporter that their report has been resolved
+        createNotification(
+          updatedReport.reporterId,
+          '✅ Disaster Report Resolved',
+          'Your disaster report has been resolved. Thank you for helping keep the community safe!',
+          'SUCCESS',
+          '/disaster'
+        );
       }
 
       return res.status(200).json({

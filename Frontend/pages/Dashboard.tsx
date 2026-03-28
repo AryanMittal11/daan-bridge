@@ -220,7 +220,7 @@ export const Dashboard = () => {
                 <div>
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{note.title}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{note.message}</p>
-                  <span className="text-xs text-slate-400 mt-2 block">{note.date}</span>
+                  <span className="text-xs text-slate-400 mt-2 block">{new Date(note.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
             ))}

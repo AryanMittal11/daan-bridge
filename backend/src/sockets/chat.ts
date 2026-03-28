@@ -1,10 +1,11 @@
 import { Server, Socket } from 'socket.io';
 import prisma from '../prisma/client';
+import { createNotification } from '../utils/notificationHelper';
+
+// Shared online users map — exported for use by notification system
+export const onlineUsers = new Map<string, string>();
 
 export const setupChatSockets = (io: Server) => {
-  // Mapping user IDs to their socket IDs to track online status if needed
-  const onlineUsers = new Map<string, string>();
-
   io.on('connection', (socket: Socket) => {
     const userId = socket.handshake.query.userId as string;
 
@@ -48,8 +49,9 @@ export const setupChatSockets = (io: Server) => {
         // Ensure ALL participants are in the room so they receive the event
         const conv = await prisma.conversation.findUnique({
           where: { id: data.conversationId },
-          include: { participants: { select: { id: true } } }
+          include: { participants: { select: { id: true, name: true } } }
         });
+
         conv?.participants.forEach(p => {
            const sId = onlineUsers.get(p.id);
            if (sId) {
@@ -60,6 +62,20 @@ export const setupChatSockets = (io: Server) => {
 
         // Broadcast the message to the conversation room
         io.to(data.conversationId).emit('receive_message', message);
+
+        // Notify offline recipients
+        const senderName = (message.sender as any)?.name || 'Someone';
+        conv?.participants.forEach(p => {
+          if (p.id !== data.senderId && !onlineUsers.has(p.id)) {
+            createNotification(
+              p.id,
+              '💬 New Message',
+              `You have unread messages from ${senderName}. Check your inbox!`,
+              'INFO',
+              '/chat'
+            );
+          }
+        });
       } catch (error) {
         console.error('Error sending message:', error);
       }

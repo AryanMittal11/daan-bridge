@@ -102,8 +102,8 @@ export const MOCK_MESSAGES: Message[] = [
 ];
 
 export const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: 'n1', title: 'Donation Received', message: 'Your donation of $50 has been processed.', type: 'SUCCESS', read: false, date: 'Just now' },
-  { id: 'n2', title: 'Urgent Alert', message: 'Heavy rains reported in your registered area. Stay safe.', type: 'WARNING', read: false, date: '1h ago' },
+  { id: 'n1', title: 'Donation Received', message: 'Your donation of $50 has been processed.', type: 'SUCCESS', read: false, createdAt: new Date().toISOString() },
+  { id: 'n2', title: 'Urgent Alert', message: 'Heavy rains reported in your registered area. Stay safe.', type: 'WARNING', read: false, createdAt: new Date(Date.now() - 3600000).toISOString() },
 ];
 
 export const MOCK_DONATIONS: Donation[] = [

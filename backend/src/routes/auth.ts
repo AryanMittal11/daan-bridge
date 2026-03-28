@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma/client';
 import { authenticateJWT, AuthRequest } from '../middleware/auth';
+import { notifyAdmins } from '../utils/notificationHelper';
 
 const router = express.Router();
 
@@ -40,6 +41,15 @@ router.post('/register', async (req, res) => {
         status: 'PENDING',
       },
     });
+
+    // Notify admins about new registration
+    notifyAdmins(
+      '👤 New User Registration',
+      `${name} (${role}) has registered and needs verification review.`,
+      'ADMIN',
+      '/admin',
+      true
+    );
   }
 
   const token = jwt.sign(

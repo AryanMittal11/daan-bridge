@@ -7,6 +7,7 @@ import {
   Settings, LogOut, Bell, User as UserIcon, ShieldAlert,
   Droplet, Truck, FileText, Image
 } from 'lucide-react';
+import { NotificationPanel } from './NotificationPanel';
 
 const SidebarItem = ({ icon: Icon, label, path, active, onClick }: any) => (
   <Link 
@@ -24,8 +25,9 @@ const SidebarItem = ({ icon: Icon, label, path, active, onClick }: any) => (
 );
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, logout, theme, toggleTheme, notifications } = useApp();
+  const { user, logout, theme, toggleTheme, notifications, setNotifications } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -128,12 +130,25 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
              <Link to="/map" className="p-2 text-slate-500 hover:text-primary-600 transition-colors relative">
                 <Map size={20} />
              </Link>
-             <button className="p-2 text-slate-500 hover:text-primary-600 transition-colors relative">
-                <Bell size={20} />
-                {notifications > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                )}
-             </button>
+             <div className="relative">
+               <button
+                 onClick={() => setIsNotifOpen(!isNotifOpen)}
+                 className="p-2 text-slate-500 hover:text-primary-600 transition-colors relative"
+               >
+                  <Bell size={20} />
+                  {notifications > 0 && (
+                    <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full animate-pulse">
+                      {notifications > 99 ? '99+' : notifications}
+                    </span>
+                  )}
+               </button>
+               <NotificationPanel
+                 isOpen={isNotifOpen}
+                 onClose={() => setIsNotifOpen(false)}
+                 unreadCount={notifications}
+                 onCountChange={(count) => setNotifications(count)}
+               />
+             </div>
           </div>
         </header>
 
@@ -144,3 +159,4 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     </div>
   );
 };
+
