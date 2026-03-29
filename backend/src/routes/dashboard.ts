@@ -20,12 +20,18 @@ router.get('/individual', authenticateJWT, async (req: AuthRequest, res: Respons
     ]);
     const livesImpacted = disasterHelpCount + bloodPledgeCount;
 
-    // Total Contributed = sum of all donation amounts by this user
-    const donationAgg = await prisma.donation.aggregate({
-      where: { donorId: userId },
-      _sum: { amount: true },
-    });
-    const totalContributed = donationAgg._sum.amount || 0;
+    // Total Contributed = sum of all donation amounts by this user + direct platform funding
+    const [donationAgg, fundingAgg] = await Promise.all([
+      prisma.donation.aggregate({
+        where: { donorId: userId },
+        _sum: { amount: true },
+      }),
+      prisma.platformFunding.aggregate({
+        where: { userId: userId },
+        _sum: { amount: true },
+      })
+    ]);
+    const totalContributed = (donationAgg._sum.amount || 0) + (fundingAgg._sum.amount || 0);
 
     // Volunteer in _ events = tutor sessions enrolled + volunteer campaign donations
     const [sessionEnrollments, volunteerDonations] = await Promise.all([
@@ -114,12 +120,17 @@ router.get('/admin', authenticateJWT, async (req: AuthRequest, res: Response) =>
       where: { status: 'PENDING' },
     });
 
-    // Platform Volume = total money donated across all campaigns
-    const volumeAgg = await prisma.donation.aggregate({
-      where: { type: 'MONEY' },
-      _sum: { amount: true },
-    });
-    const platformVolume = volumeAgg._sum.amount || 0;
+    // Platform Volume = total money donated across all campaigns + total platform funding
+    const [volumeAgg, fundingAgg] = await Promise.all([
+      prisma.donation.aggregate({
+        where: { type: 'MONEY' },
+        _sum: { amount: true },
+      }),
+      prisma.platformFunding.aggregate({
+        _sum: { amount: true },
+      })
+    ]);
+    const platformVolume = (volumeAgg._sum.amount || 0) + (fundingAgg._sum.amount || 0);
 
     // Total Users
     const totalUsers = await prisma.user.count();
