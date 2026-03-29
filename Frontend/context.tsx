@@ -82,7 +82,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Socket.IO for real-time notifications
   useEffect(() => {
     if (user) {
-      const s = socketIO('http://localhost:4000', {
+      const s = socketIO(import.meta.env.VITE_SOCKET_URL, {
         query: { userId: user.id },
       });
 

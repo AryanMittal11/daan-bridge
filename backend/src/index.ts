@@ -24,14 +24,15 @@ import { initNotificationHelper } from './utils/notificationHelper';
 
 const app = express();
 const httpServer = createServer(app);
+const frontendUrl = process.env.FRONTEND_URL || '*';
 const io = new Server(httpServer, {
   cors: {
-    origin: '*',
+    origin: frontendUrl,
     methods: ['GET', 'POST']
   }
 });
 
-app.use(cors());
+app.use(cors({ origin: frontendUrl }));
 app.use(express.json({ limit: '10mb' })); // Increase limit for potential base64 or large inputs
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads
 
