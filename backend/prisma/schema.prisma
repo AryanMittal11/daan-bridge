@@ -47,6 +47,7 @@ model User {
   conversations    Conversation[] @relation("UserConversations")
   messagesSent     Message[]
   notifications    Notification[]
+  platformFundings PlatformFunding[]
 }
 
 model VerificationRequest {
@@ -382,4 +383,15 @@ enum NotificationType {
   WARNING
   URGENT
   ADMIN
+}
+
+model PlatformFunding {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Int
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

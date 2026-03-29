@@ -14,6 +14,8 @@ import tutoringRoutes from './routes/tutoring';
 import galleryRoutes from './routes/gallery';
 import chatRoutes from './routes/chat';
 import notificationRoutes from './routes/notifications';
+import dashboardRoutes from './routes/dashboard';
+import fundingRoutes from './routes/funding';
 import prisma from "./prisma/client";
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -47,6 +49,8 @@ app.use('/api/tutoring', tutoringRoutes); // NEW: Tutoring API
 app.use('/api/gallery', galleryRoutes); // NEW: Gallery API
 app.use('/api/chat', chatRoutes); // NEW: Chat API
 app.use('/api/notifications', notificationRoutes); // Notifications API
+app.use('/api/dashboard', dashboardRoutes); // Dashboard API
+app.use('/api/funding', fundingRoutes); // Platform Funding API
 
 app.get('/api/me', (req, res) => { res.send('Daan Bridge API up'); });
 
