@@ -54,6 +54,9 @@ export const Dashboard = () => {
   const [donationType, setDonationType] = useState<'MONEY' | 'MATERIAL'>('MONEY');
   const [donationAmount, setDonationAmount] = useState('');
   const [selectedNGO, setSelectedNGO] = useState<any>(null);
+  const [showPlatformFundModal, setShowPlatformFundModal] = useState(false);
+  const [platformFundAmount, setPlatformFundAmount] = useState('');
+  const [platformFundMessage, setPlatformFundMessage] = useState('');
 
   // Fetch dashboard data on mount
   useEffect(() => {
@@ -110,6 +113,22 @@ export const Dashboard = () => {
     alert(`Thank you! Your ${donationType === 'MONEY' ? 'donation' : 'pledge'} to ${donationTarget?.name} has been recorded.`);
     setShowDonateModal(false);
     setDonationAmount('');
+  };
+
+  const handlePlatformFundSubmit = async () => {
+    try {
+      if (!platformFundAmount) return alert('Please enter an amount.');
+      await API.post('/funding/contribute', {
+        amount: Number(platformFundAmount),
+        message: platformFundMessage,
+      });
+      alert('Thank you for supporting Daan Bridge!');
+      setShowPlatformFundModal(false);
+      setPlatformFundAmount('');
+      setPlatformFundMessage('');
+    } catch (err) {
+      alert('Failed to process contribution.');
+    }
   };
 
   // ─── Stat Renderers ────────────────────────────────────────────────────
@@ -306,6 +325,32 @@ export const Dashboard = () => {
         </Card>
       </div>
 
+      {/* ─── Platform Funding Card (For Non-Admins) ────────────────────── */}
+      {user?.role !== 'ADMIN' && (
+        <Card className="p-6 bg-gradient-to-r from-emerald-600 to-teal-700 text-white relative overflow-hidden">
+          <div className="absolute -right-10 -top-10 text-emerald-500 opacity-20">
+            <Heart size={150} />
+          </div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h3 className="text-2xl font-bold mb-2 flex items-center gap-2">
+                <Heart className="fill-white" /> Support Daan Bridge
+              </h3>
+              <p className="text-emerald-50 max-w-2xl">
+                We take 0% commission on donations to ensure your money goes directly to those in need. 
+                If you love our platform, consider chipping in to help us cover server costs and keep the platform free for all NGOs.
+              </p>
+            </div>
+            <Button 
+              onClick={() => setShowPlatformFundModal(true)}
+              className="bg-white text-emerald-700 hover:bg-emerald-50 whitespace-nowrap px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all"
+            >
+              Fund Platform 🚀
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* ─── Individual: Suggested Campaigns / Org: Active Campaigns ──── */}
       {user?.role !== 'ADMIN' && (
         <div>
@@ -436,6 +481,57 @@ export const Dashboard = () => {
           </div>
 
           <Button className="w-full" onClick={() => { setShowHelpModal(false); alert('Request Submitted for Admin Verification'); }}>Submit Request</Button>
+        </div>
+      </Modal>
+
+      {/* ─── Platform Funding Modal ─────────────────────────────────────── */}
+      <Modal isOpen={showPlatformFundModal} onClose={() => setShowPlatformFundModal(false)} title="Support Daan Bridge Platform">
+        <div className="space-y-4">
+          <div className="bg-emerald-50 text-emerald-800 p-4 rounded-lg text-sm border border-emerald-200">
+            <strong>0% Platform Fee Guarantee!</strong> We don't take a cut from your donations. Your voluntary tips help us pay for servers, moderation tools, and active development.
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3 my-4">
+            {['100', '500', '1000'].map(amt => (
+              <button 
+                key={amt} 
+                onClick={() => setPlatformFundAmount(amt)} 
+                className={`py-3 font-bold rounded-lg border-2 transition-colors ${
+                  platformFundAmount === amt 
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                    : 'border-slate-200 text-slate-600 hover:border-emerald-300'
+                }`}
+              >
+                ₹{amt}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <DollarSign size={18} className="absolute left-3 top-[38px] text-slate-400" />
+            <Input 
+              label="Custom Amount (₹)"
+              placeholder="Enter amount" 
+              type="number"
+              className="pl-10 text-lg font-bold" 
+              value={platformFundAmount} 
+              onChange={(e: any) => setPlatformFundAmount(e.target.value)} 
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Encouraging Message (Optional)</label>
+            <textarea 
+              className="w-full p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none h-20 resize-none"
+              placeholder="Leave a note for the admins..."
+              value={platformFundMessage}
+              onChange={(e: any) => setPlatformFundMessage(e.target.value)}
+            ></textarea>
+          </div>
+
+          <Button className="w-full py-3 text-lg mt-4 bg-emerald-600 hover:bg-emerald-700 border-none" onClick={handlePlatformFundSubmit}>
+             Send Tip ₹{platformFundAmount || '0'}
+          </Button>
         </div>
       </Modal>
 

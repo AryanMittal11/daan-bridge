@@ -287,4 +287,80 @@ router.get('/chart-data', authenticateJWT, async (req: AuthRequest, res: Respons
   }
 });
 
+// ─── Admin Analytics (real data for Admin console) ──────────────────────────
+router.get('/admin-analytics', authenticateJWT, async (req: AuthRequest, res: Response) => {
+  try {
+    if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Admin only.' });
+    }
+
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Growth data: monthly new users + donations
+    const [users, donations] = await Promise.all([
+      prisma.user.findMany({
+        where: { createdAt: { gte: sixMonthsAgo } },
+        select: { createdAt: true },
+      }),
+      prisma.donation.findMany({
+        where: { createdAt: { gte: sixMonthsAgo } },
+        select: { amount: true, createdAt: true },
+      }),
+    ]);
+
+    const growthMap: Record<string, { users: number; donations: number }> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      growthMap[monthNames[d.getMonth()]] = { users: 0, donations: 0 };
+    }
+
+    users.forEach((u) => {
+      const key = monthNames[new Date(u.createdAt).getMonth()];
+      if (key in growthMap) growthMap[key].users++;
+    });
+    donations.forEach((d) => {
+      const key = monthNames[new Date(d.createdAt).getMonth()];
+      if (key in growthMap) growthMap[key].donations += d.amount;
+    });
+
+    const growth = Object.entries(growthMap).map(([name, data]) => ({
+      name,
+      users: data.users,
+      donations: data.donations,
+    }));
+
+    // User distribution by role
+    const [individualCount, orgCount, adminCount] = await Promise.all([
+      prisma.user.count({ where: { role: 'INDIVIDUAL' } }),
+      prisma.user.count({ where: { role: 'ORGANIZATION' } }),
+      prisma.user.count({ where: { role: 'ADMIN' } }),
+    ]);
+    const distribution = [
+      { name: 'Individuals', value: individualCount },
+      { name: 'Organizations', value: orgCount },
+      { name: 'Admins', value: adminCount },
+    ];
+
+    // Campaign category distribution
+    const allCampaigns = await prisma.campaign.findMany({
+      select: { type: true },
+    });
+    const categoryMap: Record<string, number> = {};
+    allCampaigns.forEach((c) => {
+      categoryMap[c.type] = (categoryMap[c.type] || 0) + 1;
+    });
+    const campaigns = Object.entries(categoryMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    res.json({ growth, distribution, campaigns });
+  } catch (error) {
+    console.error('Error fetching admin analytics:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 export default router;
+
