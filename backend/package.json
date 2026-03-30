@@ -31,5 +31,8 @@
     "dotenv": "^17.2.4",
     "ts-node-dev": "latest",
     "typescript": "latest"
+  },
+  "prisma": {
+    "seed": "npx ts-node-dev prisma/seed.ts"
   }
 }

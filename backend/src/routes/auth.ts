@@ -13,8 +13,12 @@ router.post('/register', async (req, res) => {
   if (!email || !password || !name || !role)
     return res.status(400).json({ message: 'Missing required fields.' });
 
-  if (role !== 'ADMIN' && (!docUrl || docUrl.trim() === '')) {
-    return res.status(400).json({ message: 'Verification document required for non-admin registrations.' });
+  if (role === 'ADMIN') {
+    return res.status(403).json({ message: 'Admin registration is not allowed.' });
+  }
+
+  if (!docUrl || docUrl.trim() === '') {
+    return res.status(400).json({ message: 'Verification document required for registration.' });
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
